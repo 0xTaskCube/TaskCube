@@ -4,20 +4,13 @@
 const nextConfig = {
   reactStrictMode: true,
   typescript: {
-    ignoreBuildErrors: true, // 始终忽略 TypeScript 构建错误
+    ignoreBuildErrors: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
   },
   eslint: {
-    ignoreDuringBuilds: true, // 在构建过程中忽略 ESLint 错误
+    ignoreDuringBuilds: true,
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-      };
-    }
+  webpack: config => {
+    config.resolve.fallback = { fs: false, net: false, tls: false };
     config.externals.push("pino-pretty", "lokijs", "encoding");
     return config;
   },
@@ -27,26 +20,6 @@ const nextConfig = {
   i18n: {
     locales: ["en"],
     defaultLocale: "en",
-  },
-  async headers() {
-    return [
-      {
-        source: "/api/:path*",
-        headers: [
-          {
-            key: "x-middleware-prefetch",
-            value: "off",
-          },
-        ],
-      },
-    ];
-  },
-
-  poweredByHeader: false,
-  generateEtags: false,
-  compress: false,
-  api: {
-    bodyParser: false,
   },
 };
 
