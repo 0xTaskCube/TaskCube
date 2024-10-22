@@ -40,7 +40,6 @@ type DeployedContracts = {
 const ADMIN_ADDRESS = process.env.ADMIN_ADDRESS || "0xB1CD9f3c65496ddD185F81d5E5b0BC9004535521";
 const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_DEPOSIT_WITHDRAW_ADDRESS || "0x4Ce3c2A082f72AEC94Ea9027aEb8aA7856588A19";
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
 interface WithdrawalRequest {
   _id: ObjectId | string;
