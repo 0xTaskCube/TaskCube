@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAccount } from "wagmi";
@@ -31,16 +31,7 @@ const MyTasksPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    console.log("当前用户地址:", address);
-    if (address) {
-      fetchTasks();
-    } else {
-      console.log("用户未连接钱包");
-    }
-  }, [address]);
-
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     console.log("正在获取任务，用户地址:", address);
@@ -89,7 +80,16 @@ const MyTasksPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [address]);
+
+  useEffect(() => {
+    console.log("当前用户地址:", address);
+    if (address) {
+      fetchTasks();
+    } else {
+      console.log("用户未连接钱包");
+    }
+  }, [address, fetchTasks]);
 
   const handleApprove = async (taskId: string, participantAddress: string | undefined) => {
     if (!participantAddress) {
@@ -219,16 +219,16 @@ const MyTasksPage = () => {
     }, [task, address]);
 
     const isPublishedTask = task.creatorAddress === address;
-    const renderStatus = () => {
-      if (task.status === "completed") {
-        return "已完成";
-      } else if (task.status === "pending_approval") {
-        return "等待审核";
-      } else {
-        const participant = task.participants.find(p => p.address === address);
-        return participant ? participant.status : task.status;
-      }
-    };
+    // const renderStatus = () => {
+    //   if (task.status === "completed") {
+    //     return "已完成";
+    //   } else if (task.status === "pending_approval") {
+    //     return "等待审核";
+    //   } else {
+    //     const participant = task.participants.find(p => p.address === address);
+    //     return participant ? participant.status : task.status;
+    //   }
+    // };
     return (
       <div className="border border-[#424242] bg-base-400 p-4 rounded-lg mb-4">
         <div className="flex justify-between items-center mb-4">
