@@ -42,11 +42,6 @@ const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_DEPOSIT_WITHDRAW_ADDRESS || "0x4Ce3c2A082f72AEC94Ea9027aEb8aA7856588A19";
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 
-if (!DEPLOYER_PRIVATE_KEY) {
-  console.error("部署者私钥未设置");
-  throw new Error("部署者私钥未设置");
-}
-
 interface WithdrawalRequest {
   _id: ObjectId | string;
   userAddress: string;
@@ -206,7 +201,8 @@ export async function PUT(request: Request) {
 
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     if (!privateKey) {
-      throw new Error("部署者私钥未设置");
+      console.error("部署者私钥未设置");
+      return NextResponse.json({ success: false, error: "部署者私钥未设置" }, { status: 500 });
     }
     const wallet = new ethers.Wallet(privateKey, provider);
 
