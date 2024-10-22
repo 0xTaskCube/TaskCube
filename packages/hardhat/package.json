@@ -25,6 +25,7 @@
     "@nomicfoundation/hardhat-verify": "^2.0.3",
     "@typechain/ethers-v5": "^10.1.0",
     "@typechain/hardhat": "^9.1.0",
+    "@types/dotenv": "^8.2.0",
     "@types/eslint": "^8",
     "@types/mocha": "^9.1.1",
     "@types/prettier": "^2",
@@ -36,7 +37,7 @@
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.2.1",
     "ethers": "^6.10.0",
-    "hardhat": "^2.19.4",
+    "hardhat": "^2.22.12",
     "hardhat-deploy": "^0.11.45",
     "hardhat-deploy-ethers": "^0.4.1",
     "hardhat-gas-reporter": "^1.0.9",
@@ -49,7 +50,7 @@
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.1",
     "@typechain/ethers-v6": "^0.5.1",
-    "dotenv": "^16.0.3",
+    "dotenv": "^16.4.5",
     "envfile": "^6.18.0",
     "qrcode": "^1.5.1"
   }

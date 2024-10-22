@@ -14,6 +14,13 @@ const nextConfig = {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     return config;
   },
+  images: {
+    domains: ["upload.wikimedia.org", "telegram.org", "raw.githubusercontent.com", "cryptologos.cc"],
+  },
+  i18n: {
+    locales: ["en"],
+    defaultLocale: "en",
+  },
 };
 
 module.exports = nextConfig;

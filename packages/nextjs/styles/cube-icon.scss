@@ -1,0 +1,139 @@
+$c-initiate: #0d9488; // 绿色
+$c-operative: #3498db; // 蓝色
+$c-enforcer: #e74c3c; // 橙色
+$c-vanguard: #9b59b6; // 紫色
+$c-prime: #ffd700; // 金色
+
+$cube-edge: 4em; // 调整大小以适应您的布局
+$n-strips: 3;
+$strip-size: $cube-edge/$n-strips;
+$gap: 0.125 * $strip-size;
+$tile-size: $strip-size - $gap;
+$normal-offset: 0.5 * ($gap - $cube-edge);
+$t: 1s;
+$m: 6;
+
+@mixin tile($off: 0, $jump: 2) {
+  $sh: (); // init shadow list
+  $n: ceil(($n-strips - $off) / $jump);
+
+  @for $i from 0 to $n-strips {
+    @for $j from 0 to $n {
+      $sh: $sh, $i * $strip-size $j * $jump * $strip-size currentColor;
+    }
+  }
+
+  top: $normal-offset + $off * $strip-size;
+  box-shadow: $sh;
+}
+
+.cube-icon {
+  font-size: 7px;
+  width: $cube-edge;
+  height: $cube-edge;
+  position: relative;
+  transform-style: preserve-3d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.axis-switcher {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-style: preserve-3d;
+  animation: switch $m * $t steps(1) infinite;
+}
+
+@keyframes switch {
+  @for $i from 1 to $m {
+    $j: $i%2;
+    $k: floor($i/2);
+
+    #{$i*100%/$m} {
+      transform: if($k < 1, (), rotate3d(1 - $j, 0, $j, 90deg)) if($k%2 < 1, rotate(0.5turn), ());
+    }
+  }
+}
+
+.cube {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: rotateX(-35deg) rotateY(45deg);
+  transform-style: preserve-3d;
+
+  &__comp {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+
+    &:first-child {
+      * {
+        transform: rotateX(-90deg) translateZ(0.5 * $cube-edge);
+      }
+      :before {
+        @include tile(1, 1);
+      }
+    }
+
+    &:last-child {
+      animation: r $t cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+    }
+  }
+
+  &__face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    transform: rotateX(90deg) translateZ(0.5 * $cube-edge);
+
+    &:before {
+      position: absolute;
+      left: $normal-offset;
+      width: $tile-size;
+      height: $tile-size;
+      border-radius: 4px;
+      @include tile(0, 3);
+      background: currentColor;
+      content: "";
+    }
+
+    @for $i from 0 to 4 {
+      &:nth-child(#{$i + 1}) {
+        transform: rotateY($i * 90deg) translateZ(0.5 * $cube-edge);
+      }
+    }
+
+    &:last-child:before {
+      @include tile(0, 1);
+    }
+  }
+}
+
+@keyframes r {
+  to {
+    transform: rotateY(-90deg);
+  }
+}
+
+.cube-initiate {
+  color: $c-initiate;
+}
+.cube-operative {
+  color: $c-operative;
+}
+.cube-enforcer {
+  color: $c-enforcer;
+}
+.cube-vanguard {
+  color: $c-vanguard;
+}
+.cube-prime {
+  color: $c-prime;
+}

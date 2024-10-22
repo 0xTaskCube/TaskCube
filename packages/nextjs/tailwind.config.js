@@ -9,19 +9,20 @@ module.exports = {
     themes: [
       {
         light: {
-          primary: "#93BBFB",
-          "primary-content": "#212638",
-          secondary: "#DAE8FF",
-          "secondary-content": "#212638",
-          accent: "#93BBFB",
-          "accent-content": "#212638",
-          neutral: "#212638",
-          "neutral-content": "#ffffff",
-          "base-100": "#ffffff",
-          "base-200": "#f4f8ff",
-          "base-300": "#DAE8FF",
-          "base-content": "#212638",
-          info: "#93BBFB",
+          primary: "#0d9488",
+          "primary-content": "#F9FBFF",
+          secondary: "#0d9488",
+          "secondary-content": "#F9FBFF",
+          accent: "#4969A6",
+          "accent-content": "#F9FBFF",
+          neutral: "#F9FBFF",
+          "neutral-content": "#385183",
+          "base-100": "#385183",
+          "base-200": "#2A3655",
+          "base-300": "#1a1a1a",
+          "base-content": "#F9FBFF",
+          "base-400": "#000000",
+          info: "#385183",
           success: "#34EEB6",
           warning: "#FFCF72",
           error: "#FF8863",
@@ -30,6 +31,7 @@ module.exports = {
 
           ".tooltip": {
             "--tooltip-tail": "6px",
+            "--tooltip-color": "oklch(var(--p))",
           },
           ".link": {
             textUnderlineOffset: "2px",
@@ -41,9 +43,9 @@ module.exports = {
       },
       {
         dark: {
-          primary: "#212638",
+          primary: "#0d9488",
           "primary-content": "#F9FBFF",
-          secondary: "#323f61",
+          secondary: "#0d9488",
           "secondary-content": "#F9FBFF",
           accent: "#4969A6",
           "accent-content": "#F9FBFF",
@@ -51,8 +53,9 @@ module.exports = {
           "neutral-content": "#385183",
           "base-100": "#385183",
           "base-200": "#2A3655",
-          "base-300": "#212638",
+          "base-300": "#1a1a1a",
           "base-content": "#F9FBFF",
+          "base-400": "#000000",
           info: "#385183",
           success: "#34EEB6",
           warning: "#FFCF72",
@@ -81,6 +84,9 @@ module.exports = {
       },
       animation: {
         "pulse-fast": "pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+      },
+      colors: {
+        "custom-hover": "#1a1a1a",
       },
     },
   },
