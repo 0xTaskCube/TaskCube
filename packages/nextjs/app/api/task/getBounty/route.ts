@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const address = searchParams.get("address");
 
   if (!address) {
+    console.log("获取 Bounty 失败: 缺少地址参数");
     return NextResponse.json({ success: false, message: "Address is required" }, { status: 400 });
   }
 
@@ -15,13 +16,23 @@ export async function GET(request: NextRequest) {
 
     const user = await db.collection("users").findOne({ address });
 
-    if (user && user.bounty !== undefined) {
+    console.log(`获取用户 ${address} 的 Bounty:`, user?.bounty);
+
+    if (user && typeof user.bounty === "number") {
       return NextResponse.json({ success: true, bounty: user.bounty });
     } else {
+      console.log(`用户 ${address} 不存在或 Bounty 未定义，返回 0`);
       return NextResponse.json({ success: true, bounty: 0 });
     }
   } catch (error) {
     console.error("获取 Bounty 失败:", error);
-    return NextResponse.json({ success: false, message: "获取 Bounty 失败" }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        message: "获取 Bounty 失败",
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    );
   }
 }

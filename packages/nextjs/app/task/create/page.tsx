@@ -111,6 +111,7 @@ const CreateTaskPage = () => {
     // 清除对应字段的错误
     setErrors(prev => ({ ...prev, [name]: "" }));
   };
+
   const handleDateChange = (date: dayjs.Dayjs | null, field: "startDate" | "endDate") => {
     setTaskData(prev => ({ ...prev, [field]: date ? date.format() : "" }));
     setErrors(prev => ({ ...prev, [field]: "" }));

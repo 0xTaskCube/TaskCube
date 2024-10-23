@@ -107,11 +107,6 @@ const MyTasksPage = () => {
         const data = await response.json();
         if (data.success) {
           notification.success("任务已批准");
-          // 更新用户的 Bounty
-          const task = publishedTasks.find(t => t.id === taskId);
-          if (task) {
-            await updateUserBounty(participantAddress, task.reward);
-          }
           fetchTasks();
         } else {
           throw new Error(data.message || "批准任务失败");
@@ -122,22 +117,6 @@ const MyTasksPage = () => {
     } catch (error) {
       console.error("批准任务失败:", error);
       notification.error("批准任务失败");
-    }
-  };
-
-  const updateUserBounty = async (address: string, reward: string) => {
-    try {
-      const response = await fetch("/api/task/updateBounty", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, reward }),
-      });
-      if (!response.ok) {
-        throw new Error("更新 Bounty 失败");
-      }
-      console.log("Bounty 更新成功");
-    } catch (error) {
-      console.error("更新 Bounty 失败:", error);
     }
   };
 

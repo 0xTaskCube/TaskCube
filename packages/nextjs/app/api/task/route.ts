@@ -113,8 +113,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ... 保留其他现有的方法（GET, PATCH 等）
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const taskId = searchParams.get("taskId");
@@ -239,18 +237,39 @@ export async function PUT(request: NextRequest) {
     }
 
     if (action === "approve") {
-      const reward = task.reward || "0";
+      const reward = parseFloat(task.reward) || 0;
 
       // 确保参与者不是任务创建者
       if (task.creatorAddress !== participantAddress) {
-        // 更新参与者的 Bounty
-        await db
-          .collection("users")
-          .updateOne({ address: participantAddress }, { $inc: { bounty: parseFloat(reward) } }, { upsert: true });
+        const session = client.startSession();
+        try {
+          await session.withTransaction(async () => {
+            // 获取用户当前的 bounty
+            const user = await db.collection("users").findOne({ address: participantAddress });
+            const currentBounty = user?.bounty || 0;
+            console.log(`用户 ${participantAddress} 当前 bounty: ${currentBounty}`);
 
-        // 更新全局 Bounty
-        await updateGlobalBounty(db, parseFloat(reward));
-        console.log("全局 Bounty 已更新，增加了:", parseFloat(reward));
+            // 更新参与者的 Bounty
+            await db
+              .collection("users")
+              .updateOne({ address: participantAddress }, { $inc: { bounty: reward } }, { upsert: true, session });
+
+            // 获取更新后的用户 bounty
+            const updatedUser = await db.collection("users").findOne({ address: participantAddress });
+            console.log(`用户 ${participantAddress} 更新后 bounty: ${updatedUser?.bounty}`);
+
+            // 更新全局 Bounty
+            const globalBountyId = new ObjectId("000000000000000000000000");
+            await db
+              .collection("bounties")
+              .updateOne({ _id: globalBountyId }, { $inc: { amount: reward } }, { upsert: true, session });
+
+            const updatedGlobalBounty = await db.collection("bounties").findOne({ _id: globalBountyId });
+            console.log(`更新后全局 Bounty: ${updatedGlobalBounty?.amount}`);
+          });
+        } finally {
+          await session.endSession();
+        }
       }
 
       return NextResponse.json({ success: true, message: "任务已批准并完成", reward });
@@ -264,9 +283,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 },
     );
   }
-}
-
-async function updateGlobalBounty(db: any, reward: number) {
-  const globalBountyId = ObjectId.createFromHexString("000000000000000000000000");
-  await db.collection("bounties").updateOne({ _id: globalBountyId }, { $inc: { amount: reward } }, { upsert: true });
 }
