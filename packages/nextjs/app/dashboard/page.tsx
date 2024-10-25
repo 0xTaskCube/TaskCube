@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import CheckIn from "../../components/ui/CheckIn";
 import CubeIcon from "../../components/ui/CubeIcon";
 import "../../styles/cube-icon.scss";
+import { FaInfoCircle } from "react-icons/fa";
 import { useAccount } from "wagmi";
 import { ClipboardDocumentListIcon, Squares2X2Icon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
@@ -15,32 +17,66 @@ const DashboardCard = ({
   value,
   link,
   level,
+  action,
+  tooltip,
 }: {
   title: string;
   value: string;
   link?: string;
   level?: LevelType;
-}) => (
-  <div className="bg-base-400 border border-[#424242] p-4 rounded-lg shadow-lg relative">
-    <h3 className="text-gray-400 text-sm font-medium mb-2">{title}</h3>
-    <div className="flex items-center">
-      {level && (
-        <div className="mr-6 ml-2  flex items-center justify-center">
-          <CubeIcon level={level} />
+  action?: { text: string; onClick: () => void };
+  tooltip?: string;
+}) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const handleMouseEnter = useCallback(() => setShowTooltip(true), []);
+  const handleMouseLeave = useCallback(() => setShowTooltip(false), []);
+
+  return (
+    <div className="bg-base-400 border border-[#424242] p-4 rounded-lg shadow-lg">
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-gray-400 text-sm font-medium mb-2 flex items-center">
+            {title}
+            {tooltip && (
+              <div className="relative inline-block ml-2">
+                <FaInfoCircle
+                  className="text-gray-400 hover:text-gray-300 cursor-help"
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                />
+                {showTooltip && (
+                  <div className="absolute z-10 w-64 p-2 mt-2 text-sm text-gray-400 bg-base-300 rounded-lg shadow-lg whitespace-pre-line left-0">
+                    {tooltip}
+                  </div>
+                )}
+              </div>
+            )}
+          </h3>
+          <div className="flex items-center">
+            {level && (
+              <div className="mr-4 flex items-center justify-center">
+                <CubeIcon level={level} />
+              </div>
+            )}
+            <p className="text-white text-3xl font-bold">{value}</p>
+          </div>
         </div>
-      )}
-      <p className="text-white text-3xl font-bold">{value}</p>
+        <div>
+          {link && (
+            <Link href={link} className="text-primary hover:text-primary-dark transition-colors">
+              Deposit
+            </Link>
+          )}
+          {action && (
+            <button onClick={action.onClick} className="text-primary hover:text-primary-dark transition-colors">
+              {action.text}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
-    {link && (
-      <Link
-        href={link}
-        className="absolute top-2 right-2 text-primary p-2 rounded-full hover:bg-primary-dark transition-colors"
-      >
-        Deposit
-      </Link>
-    )}
-  </div>
-);
+  );
+};
 
 interface CompletedTask {
   id: string;
@@ -147,12 +183,26 @@ const Dashboard = () => {
 
     fetchData();
   }, [address]);
+  const handleClaimBounty = () => {
+    // 在这里添加领取奖励的逻辑
+    console.log("领取奖励");
+  };
+
+  const levelTooltip = `
+等级说明：
+1. Initiate: 新手级别
+2. Operative: 完成25天连续签到
+3. Enforcer: 完成50天连续签到
+4. Vanguard: 完成75天连续签到
+5. Prime: 完成100天连续签到
+
+每个等级都有不同的权限和奖励，继续保持签到以提升等级！
+  `.trim();
 
   const cardData = [
     { title: "Effective Margin", value: `$${availableBalance}`, link: "/user-dw" },
-    { title: "Effective Bounty", value: `$${bounty}` },
-    { title: "Level", value: userLevel.level, level: userLevel.level },
-    { title: "Daily Check-in", value: "42" },
+    { title: "Effective Bounty", value: `$${bounty}`, action: { text: "Claim", onClick: handleClaimBounty } },
+    { title: "Level", value: userLevel.level, level: userLevel.level, tooltip: levelTooltip },
   ];
 
   return (
@@ -164,11 +214,20 @@ const Dashboard = () => {
         </h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {cardData.map((card, index) => (
-            <DashboardCard key={index} title={card.title} value={card.value} link={card.link} level={card.level} />
+            <DashboardCard
+              key={index}
+              title={card.title}
+              value={card.value}
+              link={card.link}
+              level={card.level}
+              action={card.action}
+              tooltip={card.tooltip}
+            />
           ))}
+          <CheckIn />
         </div>
 
-        <div className="base-400 rounded-lg shadow-lg overflow-hidden">
+        <div className="bg-base-400 rounded-lg shadow-lg overflow-hidden">
           <h1 className="text-2xl font-bold mb-4 flex items-center">
             <ClipboardDocumentListIcon className="h-6 w-6 mr-2" />
             Task record
