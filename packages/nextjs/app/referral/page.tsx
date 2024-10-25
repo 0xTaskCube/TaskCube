@@ -74,7 +74,7 @@ const ReferralPage = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className=" bg-base-400 rounded-xl shadow-lg p-6 w-full md:w-1/2 flex flex-col gap-4">
+        <div className=" bg-base-400 rounded-xl shadow-lg  w-full md:w-1/2 flex flex-col gap-4">
           <button
             className="flex items-center justify-center gap-2 bg-black text-white py-3 px-4 rounded-lg border border-[#424242] hover:bg-primary mb-2"
             onClick={handleCopyLink}

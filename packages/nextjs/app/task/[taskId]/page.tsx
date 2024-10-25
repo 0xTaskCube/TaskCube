@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
@@ -42,6 +43,29 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const [isAccepted, setIsAccepted] = useState(false);
   const [userLevel, setUserLevel] = useState<LevelType>("Initiate");
 
+  const participationOptions = [
+    { value: "Initiate", label: "Initiate", minReward: 0 },
+    { value: "Operative", label: "Operative", minReward: 100 },
+    { value: "Enforcer", label: "Enforcer", minReward: 300 },
+    { value: "Vanguard", label: "Vanguard", minReward: 500 },
+    { value: "Prime", label: "Prime", minReward: 1000 },
+  ];
+  const getParticipationTypeColor = (type: string): string => {
+    switch (type) {
+      case "Initiate":
+        return "bg-[#0d9488]"; // 绿色
+      case "Operative":
+        return "bg-[#3498db]"; // 蓝色
+      case "Enforcer":
+        return "bg-[#e74c3c]"; // 橙色
+      case "Vanguard":
+        return "bg-[#9b59b6]"; // 紫色
+      case "Prime":
+        return "bg-[#ffd700]"; // 金色
+      default:
+        return "bg-gray-700"; // 保留默认颜色为深灰色
+    }
+  };
   const fetchTask = async () => {
     try {
       const response = await fetch(`/api/task?taskId=${params.taskId}`);
@@ -142,6 +166,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     return () => clearInterval(timer);
   }, [task]);
 
+  const router = useRouter();
   const handleAcceptTask = async () => {
     if (!address) {
       notification.error("请先连接钱包");
@@ -162,6 +187,8 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         notification.success("任务接受成功");
         // 重新获取任务详情以更新参与者列表
         await fetchTask();
+        // 跳转到"我的任务"页面
+        router.push("/task/my-tasks");
       } else {
         const errorData = await response.json();
         throw new Error(errorData.message || "接受任务失败");
@@ -171,13 +198,21 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
       notification.error("接受任务失败");
     }
   };
+
   const canAcceptTask = () => {
-    if (!task) return false;
+    if (!task || !address) return false;
+
+    // 检查是否是自己发布的任务
+    if (task.creatorAddress === address) {
+      return false;
+    }
+
     const levelOrder = ["Initiate", "Operative", "Enforcer", "Vanguard", "Prime"];
     const userLevelIndex = levelOrder.indexOf(userLevel);
-    const taskLevelIndex = levelOrder.indexOf(task.level);
+    const taskLevelIndex = levelOrder.indexOf(task.participationType as LevelType);
     return userLevelIndex >= taskLevelIndex;
   };
+
   if (loading) return <div className="p-4">加载中...</div>;
   if (error) return <div className="p-4">错误: {error}</div>;
   if (!task) return <div className="p-4">未找到任务</div>;
@@ -238,7 +273,21 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                       </div>
                     ),
                   },
-                  { title: "Rewards Remaining", content: `${participants.length} / 10` },
+                  {
+                    title: "Participation Level",
+                    content: (
+                      <div className="flex items-center">
+                        <span
+                          className={`${getParticipationTypeColor(
+                            task.participationType,
+                          )} text-white px-2 py-1 rounded text-sm`}
+                        >
+                          {participationOptions.find(option => option.value === task.participationType)?.label ||
+                            "Unknown"}
+                        </span>
+                      </div>
+                    ),
+                  },
                   {
                     title: "Time Remaining",
                     content: (
@@ -295,9 +344,11 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   ? "已结束"
                   : isAccepted
                   ? "已接受"
+                  : task.creatorAddress === address
+                  ? "不能接受自己发布的任务"
                   : canAcceptTask()
                   ? "接受任务"
-                  : `你只能接受${userLevel}等级及以下的任务`}
+                  : `只能接受${userLevel}等级及以下的任务`}
               </button>
             </div>
           </div>

@@ -190,11 +190,13 @@ const MyTasksPage = () => {
   const TaskItem = ({ task }: { task: Task }) => {
     const { address } = useAccount();
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [participantStatus, setParticipantStatus] = useState<string>("");
 
     useEffect(() => {
-      // 检查当前用户是否已经提交了这个任务
+      // 检查当前用户是否已经提交了这个任务，并获取参与者状态
       const currentParticipant = task.participants.find(p => p.address === address);
-      setIsSubmitted(currentParticipant?.status === "submitted");
+      setIsSubmitted(currentParticipant?.status === "submitted" || currentParticipant?.status === "approved");
+      setParticipantStatus(currentParticipant?.status || "");
     }, [task, address]);
 
     const isPublishedTask = task.creatorAddress === address;
@@ -209,7 +211,7 @@ const MyTasksPage = () => {
     //   }
     // };
     return (
-      <div className="border border-[#424242] bg-base-400 p-4 rounded-lg mb-4">
+      <div className="border border-[#424242] bg-base-400 p-4 rounded-lg mb-6">
         <div className="flex justify-between items-center mb-4">
           <div>
             <span className="text-white text-lg font-semibold mr-4">{task.title}</span>
@@ -228,7 +230,7 @@ const MyTasksPage = () => {
         </div>
         {isPublishedTask ? (
           <div>
-            <div className="mb-2">接受此任务的用户：</div>
+            <div className="mb-2 text-sm">接受此任务的用户：</div>
             <div className="flex flex-wrap gap-2">
               {task.participants && task.participants.length > 0 ? (
                 task.participants.map((participant, index) => (
@@ -239,7 +241,7 @@ const MyTasksPage = () => {
                         <span className="ml-2 text-sm">
                           {participant.address.slice(0, 6)}...{participant.address.slice(-4)}
                         </span>
-                        <span className="ml-2 text-xs text-gray-400">状态: {participant.status}</span>
+                        {/* <span className="ml-2 text-xs text-gray-400">state: {participant.status}</span> */}
                         {participant.status === "submitted" ? (
                           <div className="ml-2">
                             <button
@@ -255,6 +257,10 @@ const MyTasksPage = () => {
                               拒绝
                             </button>
                           </div>
+                        ) : participant.status === "approved" ? (
+                          <span className="ml-2 text-xs text-green-500">已批准</span>
+                        ) : participant.status === "rejected" ? (
+                          <span className="ml-2 text-xs text-yellow-500">待审核</span>
                         ) : (
                           <span className="ml-2 text-xs text-yellow-500">等待提交</span>
                         )}
@@ -280,12 +286,18 @@ const MyTasksPage = () => {
             </div>
             <button
               onClick={() => handleSubmit(task.id)}
-              className={`bg-primary hover:bg-opacity-80 text-white px-4 py-2 rounded-lg text-sm ${
-                isSubmitted ? "bg-custom-hover" : ""
+              className={`text-white px-4 py-2 rounded-lg text-sm ${
+                participantStatus === "approved" || isSubmitted ? "bg-custom-hover" : "bg-primary hover:bg-opacity-80"
               }`}
-              disabled={isSubmitted}
+              disabled={participantStatus === "approved"}
             >
-              {isSubmitted ? "已提交" : "提交审核"}
+              {participantStatus === "approved"
+                ? "已完成"
+                : participantStatus === "rejected"
+                ? "提交审核"
+                : isSubmitted
+                ? "已提交"
+                : "提交审核"}
             </button>
           </div>
         )}
@@ -311,7 +323,7 @@ const MyTasksPage = () => {
             <button
               onClick={() => setTaskType("published")}
               className={`px-4 py-2 rounded-lg text-sm ${
-                taskType === "published" ? "bg-primary text-white" : "bg-gray-700 text-gray-300"
+                taskType === "published" ? "bg-primary text-white" : "bg-custom-hover text-gray-300"
               }`}
             >
               已发布的任务
@@ -319,7 +331,7 @@ const MyTasksPage = () => {
             <button
               onClick={() => setTaskType("accepted")}
               className={`px-4 py-2 rounded-lg text-sm ${
-                taskType === "accepted" ? "bg-primary text-white" : "bg-gray-700 text-gray-300"
+                taskType === "accepted" ? "bg-primary text-white" : "bg-custom-hover text-gray-300"
               }`}
             >
               已接受的任务

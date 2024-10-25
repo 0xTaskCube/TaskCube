@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 import HC_accessibility from "highcharts/modules/accessibility";
@@ -18,15 +18,18 @@ if (typeof Highcharts === "object") {
   HC_accessibility(Highcharts);
 }
 
+const shortenAddress = (address: string) => {
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+};
 // 格式化数据为 Highcharts 支持的树形结构
 const formatTreeData = (data: any) => {
   const formattedData: any[] = [];
-
+  const isMobile = window.innerWidth <= 768;
   // 添加邀请者作为根节点
   formattedData.push({
-    id: "root", // 为根节点设定 id
+    id: "root",
     parent: "",
-    name: `${data.inviter}`, // 显示邀请者的钱包地址
+    name: isMobile ? shortenAddress(data.inviter) : data.inviter,
     wallet: data.inviter,
   });
 
@@ -36,38 +39,52 @@ const formatTreeData = (data: any) => {
       children.forEach(child => {
         formattedData.push({
           id: child.invitee,
-          parent: parentId, // 设置父节点
-          name: `${child.invitee}`, // 显示被邀请者的钱包地址
+          parent: parentId,
+          name: isMobile ? shortenAddress(child.invitee) : child.invitee,
           wallet: child.invitee,
         });
 
         if (child.children && child.children.length > 0) {
-          recursiveFormat(child.children, child.invitee); // 递归处理子节点
+          recursiveFormat(child.children, child.invitee);
         }
       });
     }
   };
 
-  recursiveFormat(data.invites, "root"); // 从根节点开始递归
+  recursiveFormat(data.invites, "root");
   return formattedData;
 };
 
 // Highcharts 图表组件
 const HighchartsTreegraph: React.FC<HighchartsTreegraphProps> = ({ data }) => {
   const chartComponentRef = React.useRef<HighchartsReact.RefObject>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    handleResize(); // 初始化时检查
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   // Highcharts 图表配置
   const options: Highcharts.Options = {
     title: {
-      text: "Team Treegraph",
+      text: "Display up to two layers",
     },
     series: [
       {
         type: "treegraph",
         data: formatTreeData(data),
         tooltip: {
-          pointFormat: "{point.name}",
-          linkFormat: "{point.name}",
+          pointFormat: isMobile ? "{point.wallet}" : "{point.name}",
+          linkFormat: isMobile ? "{point.wallet}" : "{point.name}",
         },
         marker: {
           symbol: "rect",

@@ -37,13 +37,15 @@ const CreateTaskPage = () => {
   });
   const [duration, setDuration] = useState({ days: 0, hours: 0, minutes: 0 });
   const [isLoading, setIsLoading] = useState(false);
+
   const participationOptions = [
-    { value: "Initiate", label: "Initiate" },
-    { value: "Operative", label: "Operative" },
-    { value: "Enforcer", label: "Enforcer" },
-    { value: "Vanguard", label: "Vanguard" },
-    { value: "Prime", label: "Prime" },
+    { value: "Initiate", label: "Initiate", minReward: 0 },
+    { value: "Operative", label: "Operative", minReward: 100 },
+    { value: "Enforcer", label: "Enforcer", minReward: 300 },
+    { value: "Vanguard", label: "Vanguard", minReward: 500 },
+    { value: "Prime", label: "Prime", minReward: 1000 },
   ];
+
   useEffect(() => {
     if (taskData.startDate && taskData.endDate) {
       const start = new Date(taskData.startDate);
@@ -129,8 +131,20 @@ const CreateTaskPage = () => {
   };
 
   const selectParticipationType = (value: string) => {
-    setTaskData(prev => ({ ...prev, participationType: value }));
+    const selectedOption = participationOptions.find(option => option.value === value);
+    if (selectedOption) {
+      setTaskData(prev => ({
+        ...prev,
+        participationType: value,
+        reward: Math.max(Number(prev.reward), selectedOption.minReward).toString(),
+      }));
+    }
     setIsParticipationTypeOpen(false);
+  };
+
+  const handleRewardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newReward = e.target.value;
+    setTaskData(prev => ({ ...prev, reward: newReward }));
   };
 
   return (
@@ -259,34 +273,6 @@ const CreateTaskPage = () => {
               </div>
 
               {duration.days > 0 ? <p className="text-sm text-gray-400">此任务将持续 {duration.days} 天</p> : null}
-
-              <div>
-                <label htmlFor="reward" className="block text-sm font-medium text-gray-400 mb-2">
-                  奖金 (USDT)
-                </label>
-                <div className="relative flex items-center">
-                  <Image
-                    src="https://cryptologos.cc/logos/tether-usdt-logo.png"
-                    alt="USDT"
-                    width={20}
-                    height={20}
-                    className="absolute left-2"
-                  />
-                  <input
-                    type="number"
-                    id="reward"
-                    name="reward"
-                    value={taskData.reward}
-                    onChange={handleChange}
-                    autoComplete="off"
-                    className={`w-full bg-black text-white p-2 pl-8 rounded-lg border ${
-                      errors.reward ? "border-red-500" : "border-[#424242]"
-                    } focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                  />
-                </div>
-                {errors.reward && <p className="text-red-500 text-sm mt-1">{errors.reward}</p>}
-              </div>
-
               <div className="mb-4">
                 <label htmlFor="taskType" className="block text-sm font-medium text-gray-400 mb-2">
                   任务类型
@@ -339,7 +325,7 @@ const CreateTaskPage = () => {
                           className="p-2 hover:bg-gray-700 cursor-pointer"
                           onClick={() => selectParticipationType(option.value)}
                         >
-                          {option.label}
+                          {option.label} (最低 {option.minReward} USDT)
                         </div>
                       ))}
                     </div>
@@ -347,6 +333,40 @@ const CreateTaskPage = () => {
                 </div>
               </div>
 
+              <div>
+                <label htmlFor="reward" className="block text-sm font-medium text-gray-400 mb-2">
+                  奖金 (USDT)
+                </label>
+                <div className="relative flex items-center">
+                  <Image
+                    src="https://cryptologos.cc/logos/tether-usdt-logo.png"
+                    alt="USDT"
+                    width={20}
+                    height={20}
+                    className="absolute left-2"
+                  />
+                  <input
+                    type="number"
+                    id="reward"
+                    name="reward"
+                    value={taskData.reward}
+                    onChange={handleRewardChange}
+                    onWheel={e => e.currentTarget.blur()}
+                    min={participationOptions.find(option => option.value === taskData.participationType)?.minReward}
+                    step="1"
+                    autoComplete="off"
+                    className="w-full bg-black text-white p-2 pl-8 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+                {Number(taskData.reward) <
+                  (participationOptions.find(option => option.value === taskData.participationType)?.minReward ||
+                    0) && (
+                  <p className="text-red-500 text-sm mt-1">
+                    最低奖金金额为{" "}
+                    {participationOptions.find(option => option.value === taskData.participationType)?.minReward} USDT
+                  </p>
+                )}
+              </div>
               {!isConnected ? (
                 <RainbowKitCustomConnectButton />
               ) : (
