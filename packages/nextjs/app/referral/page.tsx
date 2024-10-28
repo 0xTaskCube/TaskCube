@@ -10,6 +10,7 @@ const ReferralPage = () => {
   const [referrerAddress, setReferrerAddress] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [referralLink, setReferralLink] = useState("");
+  const [referralReward, setReferralReward] = useState("0");
   const router = useRouter();
 
   useEffect(() => {
@@ -33,6 +34,29 @@ const ReferralPage = () => {
       setReferrerAddress(inviter);
       saveInvitation(inviter, currentAddress);
     }
+  }, [currentAddress]);
+
+  useEffect(() => {
+    const fetchReferralRewards = async () => {
+      if (currentAddress) {
+        try {
+          const response = await fetch(`/api/task/getBounty?address=${currentAddress}`);
+          const data = await response.json();
+
+          if (data.success) {
+            // 计算直接和间接邀请奖励的总和
+            const directRewards = parseFloat(data.details.directInviterRewards);
+            const indirectRewards = parseFloat(data.details.indirectInviterRewards);
+            const totalReferralRewards = (directRewards + indirectRewards).toFixed(0);
+            setReferralReward(totalReferralRewards);
+          }
+        } catch (error) {
+          console.error("获取邀请奖励失败:", error);
+        }
+      }
+    };
+
+    fetchReferralRewards();
   }, [currentAddress]);
 
   const saveInvitation = async (inviter: string, invitee: string) => {
@@ -99,8 +123,8 @@ const ReferralPage = () => {
       <div className="flex flex-col md:flex-row items-center justify-center gap-6 w-full max-w-4xl">
         {/* Referral Points Card */}
         <div className="border border-[#424242] bg-base-400 rounded-xl shadow-lg p-6 w-full md:w-1/2">
-          <h2 className="text-lg text-gray-400">Referral Points</h2>
-          <p className="text-4xl font-bold mt-2">0 Pts</p>
+          <h2 className="text-lg text-gray-400">Referral reward</h2>
+          <p className="text-4xl font-bold mt-2">{referralReward} USDT</p>
         </div>
 
         {/* Action Buttons */}
