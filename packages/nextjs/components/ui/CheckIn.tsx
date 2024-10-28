@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import confetti from "canvas-confetti";
 import { FaFire, FaInfoCircle } from "react-icons/fa";
 import { useAccount } from "wagmi";
 
@@ -20,6 +21,7 @@ const CheckIn: React.FC = () => {
   });
   const [showTooltip, setShowTooltip] = useState(false);
   const { address } = useAccount();
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     if (address) {
@@ -48,7 +50,14 @@ const CheckIn: React.FC = () => {
       });
       const data = await response.json();
       if (data.success) {
-        await fetchCheckInState(); // 重新获取最新状态
+        setIsAnimating(true);
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+        setTimeout(() => setIsAnimating(false), 1000);
+        await fetchCheckInState();
       }
     } catch (error) {
       console.error("签到失败:", error);
@@ -78,19 +87,14 @@ const CheckIn: React.FC = () => {
   const checkInRules = `
 签到规则：
 1. 每天只能签到一次
-2. 连续签到可提升等级：
-   - 25天: Operative
-   - 50天: Enforcer
-   - 75天: Vanguard
-   - 100天: Prime
-3. 高等级可获得补签机会：
+2. 不同等级可获得不同补签机会：
    - Operative: 1天
    - Enforcer: 3天
    - Vanguard: 5天
    - Prime: 7天
-4. 签到可获得积分奖励
-5. 保持连续签到以获得更多奖励！
-  `.trim();
+3. 签到可获得积分奖励
+4. 保持连续签到以获得更多奖励！
+`.trim();
   const handleMouseEnter = useCallback(() => setShowTooltip(true), []);
   const handleMouseLeave = useCallback(() => setShowTooltip(false), []);
 
@@ -121,14 +125,21 @@ const CheckIn: React.FC = () => {
         </div>
         <div>
           {checkInState.canCheckIn ? (
-            <button onClick={handleCheckIn} className="text-primary hover:text-primary-dark transition-colors">
+            <button
+              onClick={handleCheckIn}
+              className={`px-4 py-2 rounded-full font-bold transition-all duration-300 ${
+                isAnimating
+                  ? "bg-primary text-white scale-110"
+                  : "bg-primary hover:bg-primary-dark text-white hover:scale-105"
+              }`}
+            >
               GM
             </button>
           ) : (
             canMakeUp && (
               <button
                 onClick={handleMakeUpCheckIn}
-                className="text-secondary hover:text-secondary-dark transition-colors"
+                className="px-3 py-2 text-sm rounded-full bg-secondary hover:bg-secondary-dark text-white font-bold transition-all duration-300 hover:scale-105"
               >
                 Make Up
               </button>
@@ -136,11 +147,15 @@ const CheckIn: React.FC = () => {
           )}
         </div>
       </div>
-      {!checkInState.canCheckIn && (
-        <div className="w-full bg-gray-700 h-2 rounded-full mt-4">
-          <div style={{ width: `${progressPercentage}%` }} className="bg-primary h-full rounded-full"></div>
-        </div>
-      )}
+      <div className="w-full bg-gray-700 h-4 rounded-full mt-4 relative">
+        <div
+          style={{ width: `${progressPercentage}%` }}
+          className="bg-primary h-full rounded-full transition-all duration-300 ease-in-out"
+        ></div>
+        <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white">
+          {checkInState.consecutiveDays} / 100
+        </span>
+      </div>
     </div>
   );
 };

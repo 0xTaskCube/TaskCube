@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
@@ -42,7 +42,8 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>("");
   const [isAccepted, setIsAccepted] = useState(false);
   const [userLevel, setUserLevel] = useState<LevelType>("Initiate");
-
+  const [completedCount, setCompletedCount] = useState(0);
+  const [taskCount, setTaskCount] = useState(0);
   const participationOptions = [
     { value: "Initiate", label: "Initiate", minReward: 0 },
     { value: "Operative", label: "Operative", minReward: 100 },
@@ -66,13 +67,19 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         return "bg-gray-700"; // 保留默认颜色为深灰色
     }
   };
+
   const fetchTask = async () => {
     try {
       const response = await fetch(`/api/task?taskId=${params.taskId}`);
       if (response.ok) {
         const data = await response.json();
+        console.log("获取到的任务数据:", data); // 添加这行来查看返回的数据
         setTask(data);
         setParticipants(data.participants || []);
+        setTaskCount(parseInt(data.taskCount) || 0); // 确保这里正确设置了 taskCount
+        // 计算已完成的任务数量
+        const completed = (data.participants || []).filter((p: Participant) => p.status === "approved").length;
+        setCompletedCount(completed);
       } else {
         throw new Error("Task not found");
       }
@@ -85,24 +92,6 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   };
 
   useEffect(() => {
-    const fetchTask = async () => {
-      try {
-        const response = await fetch(`/api/task?taskId=${params.taskId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setTask(data);
-          // 使用从API返回的参与者数据，而不是模拟数据
-          setParticipants(data.participants || []);
-        } else {
-          throw new Error("Task not found");
-        }
-      } catch (error) {
-        console.error("获取任务详情失败:", error);
-        setError("获取任务详情失败");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchTask();
   }, [params.taskId]);
 
@@ -110,10 +99,39 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     const fetchUserLevel = async () => {
       if (address) {
         try {
-          const response = await fetch(`/api/task/getUserLevel?address=${address}`);
-          const data = await response.json();
-          if (data.success) {
-            setUserLevel(data.level as LevelType);
+          // 获取用户余额
+          const balanceResponse = await fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`);
+          const balanceData = await balanceResponse.json();
+
+          // 获取邀请信息
+          const invitesResponse = await fetch(`/api/invites?inviter=${address}`);
+          const invitesData = await invitesResponse.json();
+
+          if (balanceData.success && invitesData.invites) {
+            const balance = parseFloat(balanceData.availableBalance);
+
+            // 使用与 dashboard 相同的等级计算逻辑
+            let level: LevelType = "Initiate";
+            if (balance >= 500) {
+              level = "Operative";
+            }
+            if (balance >= 1000) {
+              level = "Enforcer";
+            }
+
+            // Check for Vanguard level
+            const vanguardInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 100);
+            if (balance >= 2000 && vanguardInvites.length >= 1) {
+              level = "Vanguard";
+            }
+
+            // Check for Prime level
+            const primeInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 500);
+            if (balance >= 3000 && primeInvites.length >= 2) {
+              level = "Prime";
+            }
+
+            setUserLevel(level);
           }
         } catch (error) {
           console.error("获取用户等级失败:", error);
@@ -207,9 +225,20 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
       return false;
     }
 
+    // 检查任务是否已达到完成人数上限
+    if (completedCount >= taskCount) {
+      return false;
+    }
+
     const levelOrder = ["Initiate", "Operative", "Enforcer", "Vanguard", "Prime"];
     const userLevelIndex = levelOrder.indexOf(userLevel);
     const taskLevelIndex = levelOrder.indexOf(task.participationType as LevelType);
+
+    console.log("用户等级:", userLevel);
+    console.log("任务等级:", task.participationType);
+    console.log("用户等级索引:", userLevelIndex);
+    console.log("任务等级索引:", taskLevelIndex);
+
     return userLevelIndex >= taskLevelIndex;
   };
 
@@ -219,13 +248,13 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
 
   return (
     <div className="bg-black text-white p-4 sm:p-6 mt-4 sm:mt-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-8xl mx-auto">
         <Link href="/task" className="inline-block mb-4 sm:mb-6">
           <ArrowLeftIcon className="h-6 w-6 text-white hover:text-primary" />
         </Link>
         <div className="flex flex-col lg:flex-row">
           {/* 左侧：任务详情 */}
-          <div className="w-full lg:w-2/3 lg:pr-6 mb-6 lg:mb-0">
+          <div className="w-full lg:w-3/5 lg:pr-6 mb-6 lg:mb-0">
             <div className="border border-[#424242] bg-base-400  rounded-lg p-4 sm:p-6">
               <div className="flex items-center mb-4 sm:mb-6">
                 {task.creatorAddress ? (
@@ -239,13 +268,23 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   <h1 className="text-xl sm:text-2xl font-bold">{task.title}</h1>
                   <p className="text-sm sm:text-base text-gray-400 mt-1">
                     {" "}
-                    {/* 这里添加了 mt-1 来减小间距 */}由{" "}
+                    由{" "}
                     {task.creatorAddress
                       ? `${task.creatorAddress.slice(0, 6)}...${task.creatorAddress.slice(-4)}`
                       : "未知创建者"}{" "}
                     创建
                   </p>
                 </div>
+              </div>
+              <div className="mb-6">
+                <p className="text-sm text-gray-400 mb-2">
+                  任务进度: {completedCount} / {taskCount}
+                </p>
+                <progress
+                  className="progress progress-primary w-full"
+                  value={completedCount}
+                  max={taskCount || 1} // 使用 1 作为默认值，避免除以零的错误
+                ></progress>
               </div>
               <div className="mb-4 sm:mb-6">
                 <h2 className="text-lg sm:text-xl font-semibold mb-2">Details</h2>
@@ -346,15 +385,17 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   ? "已接受"
                   : task.creatorAddress === address
                   ? "不能接受自己发布的任务"
+                  : completedCount >= taskCount
+                  ? "任务已结束"
                   : canAcceptTask()
                   ? "接受任务"
-                  : `只能接受${userLevel}等级及以下的任务`}
+                  : `您的等级（${userLevel}）不足，需要${task.participationType}等级或以上才能接受此任务`}
               </button>
             </div>
           </div>
 
           {/* 右侧：参与者列表 */}
-          <div className="w-full lg:w-1/3">
+          <div className="w-full lg:w-2/5">
             <div className="border rounded-xl border-[#424242] bg-base-400 p-4 sm:p-6">
               <h2 className="text-lg sm:text-xl font-semibold mb-4">Participants</h2>
               <div className="flex text-sm justify-between text-gray-400 mb-2">

@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 获取邀请数据的 GET 方法
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const inviter = searchParams.get("inviter");
@@ -38,47 +37,69 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    // 检查是否传入 invitee 参数，如果传入则检查 invitee 是否已经被邀请过
     if (invitee) {
-      const existingInvite = await db.collection("invites").findOne({ invitee });
-      if (existingInvite) {
-        return NextResponse.json({
-          message: "This wallet address has already been invited",
-          status: "invited",
-          inviter: existingInvite.inviter,
-        });
+      const invite = await db.collection("invites").findOne({ invitee });
+      if (invite) {
+        return NextResponse.json({ status: "invited", inviter: invite.inviter });
+      } else {
+        return NextResponse.json({ status: "not_invited" });
       }
-      return NextResponse.json({ message: "This wallet address has not been invited", status: "not_invited" });
     }
 
-    // 如果没有 invitee 参数，则执行原来的获取直接邀请者的逻辑
     if (inviter) {
       const invites = await db.collection("invites").find({ inviter }).toArray();
 
-      // 递归获取子邀请者，限制深度为2
-      const fetchNestedInvites = async (invitee: string, depth: number): Promise<any[]> => {
-        if (depth >= 2) return [];
-
-        const nestedInvites = await db.collection("invites").find({ inviter: invitee }).toArray();
-        return Promise.all(
-          nestedInvites.map(async nestedInvite => ({
-            invitee: nestedInvite.invitee,
-            children: await fetchNestedInvites(nestedInvite.invitee, depth + 1),
-          })),
-        );
-      };
-
       const result = await Promise.all(
-        invites.map(async invite => ({
-          invitee: invite.invitee,
-          children: await fetchNestedInvites(invite.invitee, 1),
-        })),
+        invites.map(async invite => {
+          // 获取一级被邀请用户的所有存款交易
+          const deposits = await db
+            .collection("transactions")
+            .find({
+              userAddress: invite.invitee,
+              type: "deposit",
+              status: "completed",
+            })
+            .toArray();
+
+          // 计算一级被邀请用户的总存款金额
+          const totalDeposits = deposits.reduce((sum, deposit) => sum + parseFloat(deposit.amount), 0);
+
+          // 获取二级邀请
+          const secondLevelInvites = await db.collection("invites").find({ inviter: invite.invitee }).toArray();
+
+          const children = await Promise.all(
+            secondLevelInvites.map(async secondInvite => {
+              // 获取二级被邀请用户的所有存款交易
+              const secondDeposits = await db
+                .collection("transactions")
+                .find({
+                  userAddress: secondInvite.invitee,
+                  type: "deposit",
+                  status: "completed",
+                })
+                .toArray();
+
+              // 计算二级被邀请用户的总存款金额
+              const secondTotalDeposits = secondDeposits.reduce((sum, deposit) => sum + parseFloat(deposit.amount), 0);
+
+              return {
+                invitee: secondInvite.invitee,
+                balance: secondTotalDeposits.toFixed(2), // 使用两位小数
+              };
+            }),
+          );
+
+          return {
+            invitee: invite.invitee,
+            balance: totalDeposits.toFixed(2), // 使用两位小数
+            children: children,
+          };
+        }),
       );
 
       return NextResponse.json({ inviter, invites: result });
     }
 
-    // 如果没有任何参数，返回错误
     return NextResponse.json({ message: "Missing required parameters", status: "error" });
   } catch (error) {
     return NextResponse.json({ message: "Failed to fetch invites", error: (error as Error).message });

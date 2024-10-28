@@ -44,31 +44,90 @@ const StartPage: React.FC = () => {
   const [selfInviteError, setSelfInviteError] = useState(false);
   const [alreadyInvitedError, setAlreadyInvitedError] = useState(false);
   const [isStartButtonEnabled, setIsStartButtonEnabled] = useState(false);
-  // 检查当前用户钱包是否已经被邀请过
-  useEffect(() => {
-    const checkInviteeStatus = async () => {
-      if (isConnected && address) {
-        try {
-          const response = await fetch(`/api/invites?invitee=${address}`);
-          const data = await response.json();
 
-          if (data.status === "invited") {
-            setIsStartButtonEnabled(true); // 钱包已被邀请过，解锁按钮
-            setIsInviterLocked(true); // 锁定输入框
-            setInviterCode(data.inviter); // 设置邀请者地址
-          } else {
-            setIsStartButtonEnabled(false); // 保持输入邀请码的逻辑
-            setIsInviterLocked(false); // 解锁输入框
-            setInviterCode(""); // 清空邀请码
-          }
-        } catch (error) {
-          console.error("Failed to check invitee status:", error);
+  const checkInviteeStatus = async () => {
+    if (isConnected && address) {
+      try {
+        const response = await fetch(`/api/invites?invitee=${address}`);
+        const data = await response.json();
+
+        if (data.status === "invited") {
+          setIsStartButtonEnabled(true);
+          setIsInviterLocked(true);
+          setInviterCode(data.inviter);
+        } else {
+          setIsStartButtonEnabled(false);
+          setIsInviterLocked(false);
+          setInviterCode("");
+        }
+      } catch (error) {
+        console.error("检查被邀请者状态失败:", error);
+      }
+    }
+  };
+  useEffect(() => {
+    if (isConnected && address) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviter = urlParams.get("inviter");
+      if (inviter) {
+        checkAndSetInviter(inviter);
+      } else {
+        checkInviteeStatus();
+      }
+    }
+  }, [isConnected, address]);
+
+  const checkAndSetInviter = async (inviter: string) => {
+    try {
+      const response = await fetch(`/api/invites?invitee=${address}`);
+      const data = await response.json();
+
+      if (data.status === "invited") {
+        // 用户已被邀请，显示其实际的邀请者
+        setInviterCode(data.inviter);
+        setIsInviterLocked(true);
+        setIsStartButtonEnabled(true);
+      } else {
+        // 用户未被邀请，尝试保存新的邀请关系
+        saveInvitation(inviter, address as string);
+      }
+    } catch (error) {
+      console.error("检查邀请状态失败:", error);
+      setInviterError(true);
+    }
+  };
+
+  const saveInvitation = async (inviter: string, invitee: string) => {
+    try {
+      const response = await fetch("/api/invites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inviter, invitee }),
+      });
+
+      const data = await response.json();
+      if (data.status === "success") {
+        console.log("邀请保存成功");
+        setInviterCode(inviter);
+        setIsInviterLocked(true);
+        setIsStartButtonEnabled(true);
+      } else {
+        console.error("保存邀请失败:", data.message);
+        if (data.message.includes("已经被邀请过")) {
+          setAlreadyInvitedError(true);
+          checkInviteeStatus(); // 获取实际的邀请者
+        } else {
+          setInviterError(true);
         }
       }
-    };
+    } catch (error) {
+      console.error("保存邀请数据时出错:", error);
+      setInviterError(true);
+    }
+  };
 
-    checkInviteeStatus();
-  }, [isConnected, address]);
   const handleInviterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const code = e.target.value;
     setInviterCode(code);

@@ -14,6 +14,8 @@ interface Quest {
   creatorAddress: string;
   taskType: string;
   participationType: string;
+  completedCount: number;
+  taskCount: number;
 }
 const getParticipationTypeColor = (type: string): string => {
   switch (type) {
@@ -36,17 +38,28 @@ const getTaskTypeColor = (type: string): string => {
   return type === "individual" ? "bg-green-600" : "bg-blue-400";
 };
 
-const QuestItem = ({ id, name, creatorAddress, reward, timeRemaining, taskType, participationType }: Quest) => {
+const QuestItem = ({
+  id,
+  name,
+  creatorAddress,
+  reward,
+  timeRemaining,
+  taskType,
+  participationType,
+  completedCount,
+  taskCount,
+}: Quest) => {
   const [isTaskExpired, setIsTaskExpired] = useState(false);
   const [formattedTimeRemaining, setFormattedTimeRemaining] = useState("");
+  const isTaskCompleted = completedCount >= taskCount;
 
   useEffect(() => {
     const calculateTimeRemaining = () => {
       const now = new Date();
-      const endDate = new Date(timeRemaining); // 假设 timeRemaining 是结束日期
+      const endDate = new Date(timeRemaining);
       const timeDiff = endDate.getTime() - now.getTime();
 
-      if (timeDiff <= 0) {
+      if (timeDiff <= 0 || isTaskCompleted) {
         setFormattedTimeRemaining("Task ended");
         setIsTaskExpired(true);
       } else {
@@ -67,10 +80,10 @@ const QuestItem = ({ id, name, creatorAddress, reward, timeRemaining, taskType, 
     };
 
     calculateTimeRemaining();
-    const timer = setInterval(calculateTimeRemaining, 60000); // 每分钟更新一次
+    const timer = setInterval(calculateTimeRemaining, 60000);
 
     return () => clearInterval(timer);
-  }, [timeRemaining]);
+  }, [timeRemaining, isTaskCompleted]);
 
   return (
     <Link href={`/task/${id}`} className="block">
@@ -79,7 +92,9 @@ const QuestItem = ({ id, name, creatorAddress, reward, timeRemaining, taskType, 
           <div className="flex items-center space-x-4">
             <div className="relative flex items-center">
               <div
-                className={`w-2 h-2 rounded-full mr-3 ${isTaskExpired ? "bg-red-500" : "bg-green-500 animate-pulse"}`}
+                className={`w-2 h-2 rounded-full mr-3 ${
+                  isTaskExpired || isTaskCompleted ? "bg-red-500" : "bg-green-500 animate-pulse"
+                }`}
               ></div>
               {creatorAddress ? (
                 <BlockieAvatar address={creatorAddress} size={48} />
@@ -90,8 +105,8 @@ const QuestItem = ({ id, name, creatorAddress, reward, timeRemaining, taskType, 
               )}
             </div>
             <div>
-              <h3 className="text-white text-base font-semibold truncate">{name || "未命名任务"}</h3>
-              <p className="text-gray-400 text-xs truncate mb-2">
+              <h3 className="text-white text-base mb-2 font-semibold truncate">{name || "未命名任务"}</h3>
+              <p className="text-gray-400 text-xs -mt-0.5 truncate mb-2">
                 {creatorAddress ? `${creatorAddress.slice(0, 6)}...${creatorAddress.slice(-4)}` : "未知创建者"}
               </p>
               <div className="flex items-center space-x-2 text-xs">
@@ -100,6 +115,9 @@ const QuestItem = ({ id, name, creatorAddress, reward, timeRemaining, taskType, 
                 </span>
                 <span className={`${getParticipationTypeColor(participationType)} text-white px-2 py-1 rounded`}>
                   {participationType}
+                </span>
+                <span className={`${isTaskCompleted ? "bg-red-500" : "bg-gray-500"} text-white px-2 py-1 rounded`}>
+                  {completedCount} / {taskCount}
                 </span>
               </div>
             </div>
@@ -115,7 +133,7 @@ const QuestItem = ({ id, name, creatorAddress, reward, timeRemaining, taskType, 
               />
               {reward} USDT
             </p>
-            <p className="text-gray-400 text-sm mt-1">{formattedTimeRemaining}</p>
+            <p className="text-gray-400 text-sm mt-1">{isTaskCompleted ? "已结束" : formattedTimeRemaining}</p>
           </div>
         </div>
       </div>
@@ -141,6 +159,8 @@ const AllQuestsPage = () => {
           timeRemaining: getTimeRemaining(task.endDate),
           taskType: task.taskType,
           participationType: task.participationType,
+          completedCount: (task.participants || []).filter((p: any) => p.status === "approved").length,
+          taskCount: parseInt(task.taskCount) || 0,
         }));
         setQuests(formattedQuests);
       } catch (error) {

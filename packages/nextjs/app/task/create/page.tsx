@@ -31,10 +31,12 @@ const CreateTaskPage = () => {
     startDate: "",
     endDate: "",
     reward: "",
+    taskCount: "",
     taskType: "individual",
-    participationType: "Initiate", // 默认设置为最低级的 Initiate
+    participationType: "Initiate",
     specificAddresses: "",
   });
+  const [totalReward, setTotalReward] = useState("0");
   const [duration, setDuration] = useState({ days: 0, hours: 0, minutes: 0 });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -69,6 +71,7 @@ const CreateTaskPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // 在 handleSubmit 函数中修改，在发送请求前处理时间
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isConnected) {
@@ -82,6 +85,11 @@ const CreateTaskPage = () => {
 
     setIsLoading(true);
     try {
+      // 获取当前时间作为开始时间
+      const now = new Date();
+      // 结束时间为当前时间 +24小时
+      const endTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
       const response = await fetch("/api/task", {
         method: "POST",
         headers: {
@@ -89,7 +97,10 @@ const CreateTaskPage = () => {
         },
         body: JSON.stringify({
           ...taskData,
+          startDate: now.toISOString(), // 使用当前时间
+          endDate: endTime.toISOString(), // 使用当前时间+24小时
           creatorAddress: address,
+          taskCount: parseInt(taskData.taskCount) || 0,
         }),
       });
       const data = await response.json();
@@ -97,11 +108,11 @@ const CreateTaskPage = () => {
         notification.success("任务发布成功");
         router.push("/task/my-tasks");
       } else {
-        throw new Error(data.message || "发布任务失败");
+        notification.error(data.error || "发布失败");
       }
     } catch (error) {
       console.error("发布任务失败:", error);
-      notification.error("发布任务失败: " + (error as Error).message);
+      notification.error("发布失败");
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +123,20 @@ const CreateTaskPage = () => {
     setTaskData(prev => ({ ...prev, [name]: value }));
     // 清除对应字段的错误
     setErrors(prev => ({ ...prev, [name]: "" }));
+
+    // 计算总奖金
+    if (name === "reward" || name === "taskCount") {
+      calculateTotalReward(
+        name === "reward" ? value : taskData.reward,
+        name === "taskCount" ? value : taskData.taskCount,
+      );
+    }
+  };
+
+  const calculateTotalReward = (reward: string, count: string) => {
+    const rewardNum = parseFloat(reward) || 0;
+    const countNum = parseInt(count) || 0;
+    setTotalReward((rewardNum * countNum).toFixed(0));
   };
 
   const handleDateChange = (date: dayjs.Dayjs | null, field: "startDate" | "endDate") => {
@@ -325,17 +350,31 @@ const CreateTaskPage = () => {
                           className="p-2 hover:bg-gray-700 cursor-pointer"
                           onClick={() => selectParticipationType(option.value)}
                         >
-                          {option.label} (最低 {option.minReward} USDT)
+                          {option.label} (Min {option.minReward} USDT)
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-
+              <div>
+                <label htmlFor="taskCount" className="block text-sm font-medium text-gray-400 mb-2">
+                  任务数量
+                </label>
+                <input
+                  type="number"
+                  id="taskCount"
+                  name="taskCount"
+                  value={taskData.taskCount}
+                  onChange={handleChange}
+                  min="1"
+                  step="1"
+                  className="w-full bg-black text-white p-2 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
               <div>
                 <label htmlFor="reward" className="block text-sm font-medium text-gray-400 mb-2">
-                  奖金 (USDT)
+                  每份奖金
                 </label>
                 <div className="relative flex items-center">
                   <Image
@@ -350,7 +389,7 @@ const CreateTaskPage = () => {
                     id="reward"
                     name="reward"
                     value={taskData.reward}
-                    onChange={handleRewardChange}
+                    onChange={handleChange}
                     onWheel={e => e.currentTarget.blur()}
                     min={participationOptions.find(option => option.value === taskData.participationType)?.minReward}
                     step="1"
@@ -365,6 +404,9 @@ const CreateTaskPage = () => {
                     最低奖金金额为{" "}
                     {participationOptions.find(option => option.value === taskData.participationType)?.minReward} USDT
                   </p>
+                )}
+                {taskData.reward && taskData.taskCount && (
+                  <p className="text-sm text-gray-400 mt-2">任务的总奖金是：{totalReward} USDT</p>
                 )}
               </div>
               {!isConnected ? (

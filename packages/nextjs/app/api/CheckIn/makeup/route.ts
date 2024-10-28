@@ -8,6 +8,12 @@ interface UserCheckInData {
   consecutiveDays: number;
   lastCheckIn: string | null;
   level: LevelType;
+  lastMakeup?: string; // 添加 lastMakeup 字段
+}
+
+// 添加 UTC+8 时间转换函数
+function getUTC8Date(date: Date): Date {
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000);
 }
 
 export async function POST(request: NextRequest) {
@@ -29,14 +35,23 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    const lastCheckIn = userData.lastCheckIn ? new Date(userData.lastCheckIn) : null;
+    const currentMonth = getUTC8Date(now).toISOString().slice(0, 7); // 'YYYY-MM'
 
+    // 检查本月是否已经补签过
+    if (userData.lastMakeup === currentMonth) {
+      return NextResponse.json({ error: "Already made up this month" }, { status: 400 });
+    }
+
+    const lastCheckIn = userData.lastCheckIn ? new Date(userData.lastCheckIn) : null;
     if (!lastCheckIn) {
       return NextResponse.json({ error: "No previous check-in found" }, { status: 400 });
     }
 
-    const daysSinceLastCheckIn = Math.floor((now.getTime() - lastCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+    const daysSinceLastCheckIn = Math.floor(
+      (getUTC8Date(now).getTime() - getUTC8Date(lastCheckIn).getTime()) / (1000 * 60 * 60 * 24),
+    );
 
+    // 获取允许的补签天数
     let makeupDaysAllowed = 0;
     switch (userData.level) {
       case "Prime":
@@ -59,27 +74,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Makeup period expired" }, { status: 400 });
     }
 
-    let consecutiveDays = userData.consecutiveDays + daysSinceLastCheckIn;
-    let level: LevelType = userData.level;
+    // 检查是否超过100天
+    let newConsecutiveDays = userData.consecutiveDays + daysSinceLastCheckIn;
+    if (newConsecutiveDays > 100) {
+      newConsecutiveDays = 100;
+    }
 
-    if (consecutiveDays >= 100) level = "Prime";
-    else if (consecutiveDays >= 75) level = "Vanguard";
-    else if (consecutiveDays >= 50) level = "Enforcer";
-    else if (consecutiveDays >= 25) level = "Operative";
-
+    // 更新数据
     const result = await userCollection.updateOne(
       { address },
       {
         $set: {
           lastCheckIn: now.toISOString(),
-          consecutiveDays,
-          level,
+          consecutiveDays: newConsecutiveDays,
+          lastMakeup: currentMonth,
         },
       },
     );
 
     if (result.modifiedCount === 1) {
-      return NextResponse.json({ success: true, consecutiveDays, level });
+      return NextResponse.json({
+        success: true,
+        consecutiveDays: newConsecutiveDays,
+        level: userData.level,
+      });
     } else {
       throw new Error("Failed to update user data");
     }

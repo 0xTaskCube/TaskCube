@@ -1,15 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { FaLink, FaShareAlt } from "react-icons/fa";
 import { useAccount } from "wagmi";
 
 const ReferralPage = () => {
   const { address: currentAddress } = useAccount();
-  const [referrerAddress] = useState<string | null>(null);
+  const [referrerAddress, setReferrerAddress] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [referralLink, setReferralLink] = useState("");
+  const router = useRouter();
 
-  const referralLink = `http://localhost:3000/referral?address=${currentAddress}`;
+  useEffect(() => {
+    if (typeof window !== "undefined" && currentAddress) {
+      const baseUrl = `${window.location.protocol}//${window.location.host}`;
+      setReferralLink(`${baseUrl}/?inviter=${currentAddress}`);
+    }
+  }, [currentAddress]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -19,13 +27,35 @@ const ReferralPage = () => {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const address = urlParams.get("address");
+    const inviter = urlParams.get("inviter");
 
-    // 如果有 address 参数，直接重定向到根目录
-    if (address) {
-      window.location.href = "/";
+    if (inviter && currentAddress) {
+      setReferrerAddress(inviter);
+      saveInvitation(inviter, currentAddress);
     }
-  }, []);
+  }, [currentAddress]);
+
+  const saveInvitation = async (inviter: string, invitee: string) => {
+    try {
+      const response = await fetch("/api/invites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inviter, invitee }),
+      });
+
+      const data = await response.json();
+      if (data.status === "success") {
+        console.log("Invitation saved successfully");
+        router.push("/dashboard");
+      } else {
+        console.error("Failed to save invitation:", data.message);
+      }
+    } catch (error) {
+      console.error("Error saving invitation data:", error);
+    }
+  };
 
   useEffect(() => {
     if (referrerAddress && currentAddress) {

@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "../../../../lib/mongodb";
+import { Document, WithId } from "mongodb";
+
+interface RewardDistribution extends Document {
+  taskId: string;
+  participantAddress: string;
+  directInviterAddress: string | null;
+  indirectInviterAddress: string | null;
+  userReward: number;
+  directInviterReward: number;
+  indirectInviterReward: number;
+  unclaimedReward: number;
+  platformFee: number;
+  distributedAt: Date;
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -14,16 +28,54 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
+    // 1. 获取用户当前的 bounty 总额
     const user = await db.collection("users").findOne({ address });
+    const currentBounty = user?.bounty || 0;
 
-    console.log(`获取用户 ${address} 的 Bounty:`, user?.bounty);
+    // 2. 获取奖励分配明细
+    const distributions = await db
+      .collection<RewardDistribution>("rewardDistributions")
+      .find({
+        $or: [{ participantAddress: address }, { directInviterAddress: address }, { indirectInviterAddress: address }],
+      })
+      .toArray();
 
-    if (user && typeof user.bounty === "number") {
-      return NextResponse.json({ success: true, bounty: user.bounty });
-    } else {
-      console.log(`用户 ${address} 不存在或 Bounty 未定义，返回 0`);
-      return NextResponse.json({ success: true, bounty: 0 });
-    }
+    // 3. 计算各类奖励总额
+    let taskCompletionRewards = 0;
+    let directInviterRewards = 0;
+    let indirectInviterRewards = 0;
+
+    distributions.forEach(distribution => {
+      if (distribution.participantAddress === address) {
+        taskCompletionRewards += distribution.userReward;
+      }
+      if (distribution.directInviterAddress === address) {
+        directInviterRewards += distribution.directInviterReward;
+      }
+      if (distribution.indirectInviterAddress === address) {
+        indirectInviterRewards += distribution.indirectInviterReward;
+      }
+    });
+
+    const totalBounty = taskCompletionRewards + directInviterRewards + indirectInviterRewards;
+
+    console.log(`用户 ${address} 的奖励明细:`, {
+      总额: totalBounty,
+      任务完成奖励: taskCompletionRewards,
+      直接邀请奖励: directInviterRewards,
+      间接邀请奖励: indirectInviterRewards,
+    });
+
+    return NextResponse.json({
+      success: true,
+      bounty: totalBounty.toFixed(2),
+      details: {
+        taskCompletionRewards: taskCompletionRewards.toFixed(2),
+        directInviterRewards: directInviterRewards.toFixed(2),
+        indirectInviterRewards: indirectInviterRewards.toFixed(2),
+        distributions: distributions, // 添加完整的分配记录
+      },
+    });
   } catch (error) {
     console.error("获取 Bounty 失败:", error);
     return NextResponse.json(

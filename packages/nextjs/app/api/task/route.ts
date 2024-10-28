@@ -9,7 +9,8 @@ export async function POST(request: NextRequest) {
   // 检查是创建新任务还是提交任务
   if (body.title) {
     // 创建新任务
-    const { title, description, startDate, endDate, reward, taskType, participationType, creatorAddress } = body;
+    const { title, description, startDate, endDate, reward, taskType, participationType, creatorAddress, taskCount } =
+      body;
 
     if (
       !title ||
@@ -19,7 +20,8 @@ export async function POST(request: NextRequest) {
       !reward ||
       !taskType ||
       !participationType ||
-      !creatorAddress
+      !creatorAddress ||
+      !taskCount
     ) {
       return NextResponse.json({ message: "所有字段都是必需的" }, { status: 400 });
     }
@@ -37,6 +39,7 @@ export async function POST(request: NextRequest) {
         taskType,
         participationType,
         creatorAddress,
+        taskCount,
         participants: [],
         status: "published",
         createdAt: new Date(),
@@ -118,41 +121,79 @@ export async function GET(request: NextRequest) {
   const taskId = searchParams.get("taskId");
   const address = searchParams.get("address");
 
-  console.log("API: 接收到的请求参数", { taskId, address });
-
   try {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    if (taskId) {
-      // 获取特定任务
-      const task = await db.collection("tasks").findOne({ _id: new ObjectId(taskId) });
-      console.log("API: 查询特定任务结果", task);
-      if (task) {
-        return NextResponse.json(task);
-      } else {
-        return NextResponse.json({ message: "Task not found" }, { status: 404 });
-      }
-    } else if (address) {
-      // 获取用户的任务
+    // 如果是请求用户数据
+    if (address && !taskId) {
+      // 获取用户数据
+      const user = await db.collection("users").findOne({ address });
+
+      // 获取用户的任务数据
       const publishedTasks = await db.collection("tasks").find({ creatorAddress: address }).toArray();
       const acceptedTasks = await db.collection("tasks").find({ "participants.address": address }).toArray();
 
-      console.log("API: 查询结果", {
-        publishedTasksCount: publishedTasks.length,
-        acceptedTasksCount: acceptedTasks.length,
+      // 获取用户的奖励分配记录
+      const distributions = await db
+        .collection("rewardDistributions")
+        .find({
+          $or: [
+            { participantAddress: address },
+            { directInviterAddress: address },
+            { indirectInviterAddress: address },
+          ],
+        })
+        .toArray();
+
+      // 计算总奖励
+      let totalBounty = 0;
+      distributions.forEach(dist => {
+        if (dist.participantAddress === address) totalBounty += dist.userReward;
+        if (dist.directInviterAddress === address) totalBounty += dist.directInviterReward;
+        if (dist.indirectInviterAddress === address) totalBounty += dist.indirectInviterReward;
       });
 
-      return NextResponse.json({ publishedTasks, acceptedTasks });
-    } else {
-      // 获取所有任务
-      const tasks = await db.collection("tasks").find().sort({ createdAt: -1 }).toArray();
-      console.log("API: 查询所有任务结果", { count: tasks.length });
-      return NextResponse.json(tasks);
+      return NextResponse.json({
+        success: true,
+        user: {
+          ...user,
+          bounty: totalBounty,
+          balance: user?.balance || 0,
+          level: user?.level || "Initiate",
+        },
+        publishedTasks,
+        acceptedTasks,
+        distributions,
+      });
     }
+
+    // 原有的任务查询逻辑
+    if (taskId) {
+      const task = await db.collection("tasks").findOne({ _id: new ObjectId(taskId) });
+      if (task) {
+        return NextResponse.json({
+          ...task,
+          taskCount: task.taskCount || 0,
+        });
+      } else {
+        return NextResponse.json({ message: "Task not found" }, { status: 404 });
+      }
+    }
+
+    // 获取所有任务
+    const tasks = await db.collection("tasks").find().sort({ createdAt: -1 }).toArray();
+    return NextResponse.json(tasks);
   } catch (error) {
     console.error("API 错误:", error);
-    return NextResponse.json({ message: "获取任务失败", error: (error as Error).message }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        message: "获取数据失败",
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    );
   }
 }
 
@@ -207,7 +248,7 @@ export async function PUT(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    let updateStatus;
+    let updateStatus: string;
     if (action === "approve") {
       updateStatus = "approved";
     } else if (action === "reject") {
@@ -222,15 +263,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ message: "任务不存在" }, { status: 404 });
     }
 
-    const result = await db.collection("tasks").updateOne(
-      { _id: new ObjectId(taskId as string), "participants.address": participantAddress },
-      {
-        $set: {
-          "participants.$.status": updateStatus,
-          status: action === "approve" ? "completed" : "published",
-        },
-      },
-    );
+    const updateData: { [key: string]: any } = {
+      "participants.$.status": updateStatus,
+      status: action === "approve" ? "completed" : "published",
+    };
+
+    if (action === "approve") {
+      updateData["participants.$.approvedDate"] = new Date();
+    }
+
+    const result = await db
+      .collection("tasks")
+      .updateOne(
+        { _id: new ObjectId(taskId as string), "participants.address": participantAddress },
+        { $set: updateData },
+      );
 
     if (result.matchedCount === 0) {
       return NextResponse.json({ message: "任务或参与者不存在" }, { status: 404 });
@@ -244,28 +291,72 @@ export async function PUT(request: NextRequest) {
         const session = client.startSession();
         try {
           await session.withTransaction(async () => {
-            // 获取用户当前的 bounty
-            const user = await db.collection("users").findOne({ address: participantAddress });
-            const currentBounty = user?.bounty || 0;
-            console.log(`用户 ${participantAddress} 当前 bounty: ${currentBounty}`);
+            // 1. 计算基础奖励金额
+            const userReward = reward * 0.9; // 90% 给完成任务的用户
+            const platformFee = reward * 0.05; // 5% 平台手续费
+            let unclaimedReward = reward * 0.05; // 剩余5%默认为未认领奖励
 
-            // 更新参与者的 Bounty
+            // 2. 查找邀请关系并分配邀请奖励
+            const invite = await db.collection("invites").findOne({ invitee: participantAddress });
+            if (invite) {
+              // 更新直接邀请者奖励 (3%)
+              await db
+                .collection("users")
+                .updateOne({ address: invite.inviter }, { $inc: { bounty: reward * 0.03 } }, { upsert: true, session });
+              unclaimedReward -= reward * 0.03;
+
+              // 查找并更新二级邀请者奖励 (2%)
+              const secondLevelInvite = await db.collection("invites").findOne({ invitee: invite.inviter });
+              if (secondLevelInvite) {
+                await db
+                  .collection("users")
+                  .updateOne(
+                    { address: secondLevelInvite.inviter },
+                    { $inc: { bounty: reward * 0.02 } },
+                    { upsert: true, session },
+                  );
+                unclaimedReward -= reward * 0.02;
+              }
+            }
+
+            // 3. 更新参与者的奖励 (90%)
             await db
               .collection("users")
-              .updateOne({ address: participantAddress }, { $inc: { bounty: reward } }, { upsert: true, session });
+              .updateOne({ address: participantAddress }, { $inc: { bounty: userReward } }, { upsert: true, session });
 
-            // 获取更新后的用户 bounty
-            const updatedUser = await db.collection("users").findOne({ address: participantAddress });
-            console.log(`用户 ${participantAddress} 更新后 bounty: ${updatedUser?.bounty}`);
-
-            // 更新全局 Bounty
+            // 4. 更新全局 Bounty
             const globalBountyId = new ObjectId("000000000000000000000000");
-            await db
-              .collection("bounties")
-              .updateOne({ _id: globalBountyId }, { $inc: { amount: reward } }, { upsert: true, session });
+            await db.collection("bounties").updateOne(
+              { _id: globalBountyId },
+              {
+                $inc: {
+                  amount: reward,
+                  platformFee: platformFee,
+                  unclaimedReward: unclaimedReward,
+                },
+              },
+              { upsert: true, session },
+            );
 
-            const updatedGlobalBounty = await db.collection("bounties").findOne({ _id: globalBountyId });
-            console.log(`更新后全局 Bounty: ${updatedGlobalBounty?.amount}`);
+            // 5. 记录奖励分配
+            await db.collection("rewardDistributions").insertOne(
+              {
+                taskId: task._id,
+                participantAddress,
+                userReward,
+                platformFee,
+                directInviterAddress: invite?.inviter || null,
+                directInviterReward: invite ? reward * 0.03 : 0,
+                indirectInviterAddress: invite
+                  ? (await db.collection("invites").findOne({ invitee: invite.inviter }))?.inviter || null
+                  : null,
+                indirectInviterReward:
+                  invite && (await db.collection("invites").findOne({ invitee: invite.inviter })) ? reward * 0.02 : 0,
+                unclaimedReward,
+                distributedAt: new Date(),
+              },
+              { session },
+            );
           });
         } finally {
           await session.endSession();

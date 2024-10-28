@@ -8,6 +8,32 @@ interface UserCheckInData {
   consecutiveDays: number;
   lastCheckIn: string | null;
   level: LevelType;
+  lastMakeup?: string;
+}
+
+// 辅助函数：转换为 UTC+8 时间
+function getUTC8Date(date: Date): Date {
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000);
+}
+
+// 辅助函数：判断是否是同一天 (UTC+8)
+function isSameDay(date1: Date, date2: Date): boolean {
+  const utc8Date1 = getUTC8Date(date1);
+  const utc8Date2 = getUTC8Date(date2);
+  return (
+    utc8Date1.getFullYear() === utc8Date2.getFullYear() &&
+    utc8Date1.getMonth() === utc8Date2.getMonth() &&
+    utc8Date1.getDate() === utc8Date2.getDate()
+  );
+}
+
+// 辅助函数：判断是否是连续的天数
+function isConsecutiveDay(lastCheckIn: Date, now: Date): boolean {
+  const utc8Last = getUTC8Date(lastCheckIn);
+  const utc8Now = getUTC8Date(now);
+  const diffTime = utc8Now.getTime() - utc8Last.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays === 1;
 }
 
 export async function GET(request: NextRequest) {
@@ -29,7 +55,9 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
     const lastCheckIn = userData.lastCheckIn ? new Date(userData.lastCheckIn) : null;
-    const canCheckIn = !lastCheckIn || now.getTime() - lastCheckIn.getTime() > 24 * 60 * 60 * 1000;
+
+    // 检查是否可以签到（基于 UTC+8 时间）
+    const canCheckIn = !lastCheckIn || !isSameDay(lastCheckIn, now);
 
     return NextResponse.json({
       consecutiveDays: userData.consecutiveDays,
@@ -58,18 +86,19 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const userData = (await userCollection.findOne({ address })) as UserCheckInData | null;
 
-    if (
-      !userData ||
-      !userData.lastCheckIn ||
-      now.getTime() - new Date(userData.lastCheckIn).getTime() > 24 * 60 * 60 * 1000
-    ) {
-      let consecutiveDays = userData ? userData.consecutiveDays + 1 : 1;
-      let level: LevelType = userData ? userData.level : "Initiate";
+    // 检查是否已经签到（基于 UTC+8 时间）
+    if (!userData || !userData.lastCheckIn || !isSameDay(new Date(userData.lastCheckIn), now)) {
+      let consecutiveDays = 1; // 默认从1开始
 
-      if (consecutiveDays >= 100) level = "Prime";
-      else if (consecutiveDays >= 75) level = "Vanguard";
-      else if (consecutiveDays >= 50) level = "Enforcer";
-      else if (consecutiveDays >= 25) level = "Operative";
+      if (userData?.lastCheckIn) {
+        const lastCheckIn = new Date(userData.lastCheckIn);
+        if (isConsecutiveDay(lastCheckIn, now)) {
+          // 如果是连续签到，增加天数
+          consecutiveDays = userData.consecutiveDays + 1;
+          // 最大连续签到天数为100天
+          if (consecutiveDays > 100) consecutiveDays = 100;
+        }
+      }
 
       const result = await userCollection.updateOne(
         { address },
@@ -77,14 +106,18 @@ export async function POST(request: NextRequest) {
           $set: {
             lastCheckIn: now.toISOString(),
             consecutiveDays,
-            level,
+            level: userData?.level || "Initiate", // 保持原有等级
           },
         },
         { upsert: true },
       );
 
       if (result.upsertedCount === 1 || result.modifiedCount === 1) {
-        return NextResponse.json({ success: true, consecutiveDays, level });
+        return NextResponse.json({
+          success: true,
+          consecutiveDays,
+          level: userData?.level || "Initiate",
+        });
       } else {
         throw new Error("Failed to update user data");
       }

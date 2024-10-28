@@ -37,6 +37,7 @@
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
+    "@types/canvas-confetti": "^1",
     "@types/dagre": "^0",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3"
@@ -69,6 +70,7 @@
     "@xyflow/react": "^12.3.0",
     "autoprefixer": "latest",
     "bson": "^6.8.0",
+    "canvas-confetti": "^1.9.3",
     "dagre": "^0.8.5",
     "dayjs": "^1.11.13",
     "entitree-flex": "^0.4.1",
