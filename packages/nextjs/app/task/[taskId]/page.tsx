@@ -70,15 +70,20 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
 
   const fetchTask = async () => {
     try {
+      console.log("开始获取任务数据，taskId:", params.taskId);
       const response = await fetch(`/api/task?taskId=${params.taskId}`);
+      console.log("API 响应状态:", response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log("获取到的任务数据:", data); // 添加这行来查看返回的数据
-        setTask(data);
-        setParticipants(data.participants || []);
-        setTaskCount(parseInt(data.taskCount) || 0); // 确保这里正确设置了 taskCount
-        // 计算已完成的任务数量
-        const completed = (data.participants || []).filter((p: Participant) => p.status === "approved").length;
+        console.log("获取到的任务数据:", data);
+        if (!data.task) {
+          console.error("任务数据不完整:", data);
+          throw new Error("任务数据不完整");
+        }
+        setTask(data.task); // 注意这里，确保使用 data.task
+        setParticipants(data.task.participants || []);
+        setTaskCount(parseInt(data.task.taskCount) || 0);
+        const completed = (data.task.participants || []).filter((p: Participant) => p.status === "approved").length;
         setCompletedCount(completed);
       } else {
         throw new Error("Task not found");

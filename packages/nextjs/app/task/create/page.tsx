@@ -9,9 +9,11 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import dayjs from "dayjs";
-import { useAccount } from "wagmi";
+import { decodeEventLog, parseUnits } from "viem";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { ArrowLeftIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
+import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 const darkTheme = createTheme({
@@ -19,6 +21,19 @@ const darkTheme = createTheme({
     mode: "dark",
   },
 });
+const USDT_ADDRESS = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0";
+const usdtAbi = [
+  {
+    constant: false,
+    inputs: [
+      { name: "_spender", type: "address" },
+      { name: "_value", type: "uint256" },
+    ],
+    name: "approve",
+    outputs: [{ name: "", type: "bool" }],
+    type: "function",
+  },
+] as const;
 
 const CreateTaskPage = () => {
   const { isConnected } = useAccount();
@@ -70,8 +85,13 @@ const CreateTaskPage = () => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { data: taskRewardContract } = useScaffoldContract({
+    contractName: "TaskReward",
+  });
   // 在 handleSubmit 函数中修改，在发送请求前处理时间
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isConnected) {
@@ -83,11 +103,74 @@ const CreateTaskPage = () => {
       return;
     }
 
+    if (!taskRewardContract || !walletClient || !publicClient || !address) {
+      notification.error("合约未准备就绪");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // 获取当前时间作为开始时间
+      // 计算总奖励金额（任务数量 * 每个任务的奖励）
+      const totalRewardAmount = parseUnits((Number(taskData.reward) * Number(taskData.taskCount)).toString(), 6); // USDT 6位小数
+
+      // 1. 批准 USDT 转账
+      const { request: approveRequest } = await publicClient.simulateContract({
+        account: address,
+        address: USDT_ADDRESS as `0x${string}`,
+        abi: usdtAbi,
+        functionName: "approve",
+        args: [taskRewardContract.address, totalRewardAmount],
+      });
+
+      notification.info("请在钱包中确认USDT授权");
+      const approveTx = await walletClient.writeContract(approveRequest);
+      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+
+      // 2. 创建任务并存入 USDT
+      notification.info("请在钱包中确认创建任务");
+      const { request: createTaskRequest } = await publicClient.simulateContract({
+        account: address,
+        address: taskRewardContract.address,
+        abi: taskRewardContract.abi,
+        functionName: "createTask",
+        args: [totalRewardAmount],
+      });
+
+      const createTaskTx = await walletClient.writeContract(createTaskRequest);
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: createTaskTx });
+
+      // 3. 从事件中获取 taskId
+      const taskCreatedEvent = receipt.logs
+        .map(log => {
+          try {
+            return decodeEventLog({
+              abi: taskRewardContract.abi,
+              data: log.data,
+              topics: log.topics,
+            });
+          } catch {
+            return undefined;
+          }
+        })
+        .find(event => event?.eventName === "TaskCreated");
+
+      // 添加日志
+      console.log("TaskCreated 事件:", taskCreatedEvent);
+      console.log("事件参数:", taskCreatedEvent?.args);
+
+      const onChainTaskId = taskCreatedEvent?.args?.taskId;
+
+      // 确保 onChainTaskId 是有效的
+      if (onChainTaskId === undefined) {
+        throw new Error("无法获取链上任务ID");
+      }
+
+      // 转换为字符串时保留原始值
+      const onChainTaskIdString = onChainTaskId.toString();
+      console.log("准备保存的链上任务ID:", onChainTaskIdString);
+
+      // 4. 创建任务记录
       const now = new Date();
-      // 结束时间为当前时间 +24小时
       const endTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
       const response = await fetch("/api/task", {
@@ -97,12 +180,14 @@ const CreateTaskPage = () => {
         },
         body: JSON.stringify({
           ...taskData,
-          startDate: now.toISOString(), // 使用当前时间
-          endDate: endTime.toISOString(), // 使用当前时间+24小时
+          onChainTaskId: onChainTaskId?.toString(), // 添加链上任务ID
+          startDate: now.toISOString(),
+          endDate: endTime.toISOString(),
           creatorAddress: address,
           taskCount: parseInt(taskData.taskCount) || 0,
         }),
       });
+
       const data = await response.json();
       if (response.ok) {
         notification.success("任务发布成功");
@@ -112,7 +197,7 @@ const CreateTaskPage = () => {
       }
     } catch (error) {
       console.error("发布任务失败:", error);
-      notification.error("发布失败");
+      notification.error("发布失败: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -165,11 +250,6 @@ const CreateTaskPage = () => {
       }));
     }
     setIsParticipationTypeOpen(false);
-  };
-
-  const handleRewardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newReward = e.target.value;
-    setTaskData(prev => ({ ...prev, reward: newReward }));
   };
 
   return (

@@ -3,12 +3,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import CheckIn from "../../components/ui/CheckIn";
+import { ClaimModal } from "../../components/ui/ClaimModal";
 import CubeIcon from "../../components/ui/CubeIcon";
 import "../../styles/cube-icon.scss";
 import { FaInfoCircle } from "react-icons/fa";
 import { useAccount } from "wagmi";
 import { ClipboardDocumentListIcon, Squares2X2Icon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
+import { notification } from "~~/utils/scaffold-eth";
 
 type LevelType = "Initiate" | "Operative" | "Enforcer" | "Vanguard" | "Prime";
 
@@ -139,6 +141,9 @@ const Dashboard = () => {
   const { address } = useAccount();
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [_invites, setInvites] = useState<any[]>([]);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+
+  const [bountyId, setBountyId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -158,42 +163,56 @@ const Dashboard = () => {
               setInvites(invitesData.invites);
             }
 
-            // 计算等级 - 使用 availableBalance 判断
+            // 计算等级
             let newLevel: LevelType = "Initiate";
-
             if (balance >= 100) newLevel = "Operative";
             if (balance >= 500) newLevel = "Enforcer";
-
-            // Vanguard 需要直接邀请1个用户且该用户保证金>=100 USDT
             if (balance >= 1000 && invitesData.invites) {
               const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 100);
               if (qualifiedInvites.length >= 1) {
                 newLevel = "Vanguard";
               }
             }
-
-            // Prime 需要直接邀请2个用户且这些用户保证金>=200 USDT
             if (balance >= 3000 && invitesData.invites) {
               const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 200);
               if (qualifiedInvites.length >= 2) {
                 newLevel = "Prime";
               }
             }
-
             setUserLevel({ level: newLevel });
           }
 
-          // 3. 获取 bounty 数据
-          const bountyResponse = await fetch(`/api/task/getBounty?address=${address}`);
-          const bountyData = await bountyResponse.json();
-          if (bountyData.success) {
-            setBounty(bountyData.bounty);
-          }
-
-          // 4. 获取任务记录
+          // 3. 获取任务记录和奖励数据
           const tasksResponse = await fetch(`/api/task?address=${address}`);
           const tasksData = await tasksResponse.json();
 
+          // 4. 获取 bounty 数据
+          const bountyResponse = await fetch(`/api/task/getBounty?address=${address}`);
+          const bountyData = await bountyResponse.json();
+
+          if (bountyData.success) {
+            setBounty(bountyData.bounty);
+
+            // 如果有奖励，找到对应的任务
+            if (parseFloat(bountyData.bounty) > 0 && tasksData.acceptedTasks) {
+              // 找到最新的已完成任务
+              const latestTask = tasksData.acceptedTasks
+                .filter((task: any) =>
+                  task.participants.some((p: any) => p.address === address && p.status === "approved"),
+                )
+                .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+              if (latestTask) {
+                setBountyId(latestTask._id);
+                console.log("获取到的任务信息:", {
+                  taskId: latestTask._id,
+                  onChainTaskId: latestTask.onChainTaskId,
+                });
+              }
+            }
+          }
+
+          // 5. 处理已完成任务列表
           if (tasksData.acceptedTasks) {
             const completedTasks = tasksData.acceptedTasks
               .filter((task: any) =>
@@ -223,7 +242,7 @@ const Dashboard = () => {
             setCompletedTasks(completedTasks);
           }
         } catch (error) {
-          console.error("Failed to fetch data:", error);
+          console.error("获取数据失败:", error);
         }
       }
     };
@@ -231,10 +250,19 @@ const Dashboard = () => {
     fetchData();
   }, [address]);
 
-  const handleClaimBounty = () => {
-    // 在这里添加领取奖励的逻辑
-    console.log("领取奖励");
-  };
+  // 3. 修改 handleClaimBounty 函数
+  const handleClaimBounty = useCallback(() => {
+    if (!bounty || parseFloat(bounty) <= 0) {
+      notification.error("没有可领取的奖励");
+      return;
+    }
+    if (!bountyId) {
+      notification.error("未找到可领取的任务");
+      return;
+    }
+    console.log("打开领取模态框", { bounty, bountyId });
+    setIsClaimModalOpen(true);
+  }, [bounty, bountyId]);
 
   const levelTooltip = `
 等级说明：
@@ -322,6 +350,12 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+        <ClaimModal
+          isOpen={isClaimModalOpen}
+          onClose={() => setIsClaimModalOpen(false)}
+          availableAmount={bounty}
+          bountyId={bountyId || ""}
+        />
       </div>
     </div>
   );

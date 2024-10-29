@@ -9,8 +9,18 @@ export async function POST(request: NextRequest) {
   // 检查是创建新任务还是提交任务
   if (body.title) {
     // 创建新任务
-    const { title, description, startDate, endDate, reward, taskType, participationType, creatorAddress, taskCount } =
-      body;
+    const {
+      title,
+      description,
+      startDate,
+      endDate,
+      reward,
+      taskType,
+      participationType,
+      creatorAddress,
+      taskCount,
+      onChainTaskId,
+    } = body;
 
     if (
       !title ||
@@ -40,6 +50,7 @@ export async function POST(request: NextRequest) {
         participationType,
         creatorAddress,
         taskCount,
+        onChainTaskId,
         participants: [],
         status: "published",
         createdAt: new Date(),
@@ -173,11 +184,15 @@ export async function GET(request: NextRequest) {
       const task = await db.collection("tasks").findOne({ _id: new ObjectId(taskId) });
       if (task) {
         return NextResponse.json({
-          ...task,
-          taskCount: task.taskCount || 0,
+          success: true,
+          task: {
+            ...task,
+            taskCount: task.taskCount || 0,
+            onChainTaskId: task.onChainTaskId, // 确保返回 onChainTaskId
+          },
         });
       } else {
-        return NextResponse.json({ message: "Task not found" }, { status: 404 });
+        return NextResponse.json({ success: false, message: "Task not found" }, { status: 404 });
       }
     }
 
@@ -214,7 +229,7 @@ export async function PATCH(request: NextRequest) {
     const result = await db
       .collection("tasks")
       .updateOne(
-        { _id: new ObjectId(taskId) },
+        { _id: new ObjectId(String(taskId)) },
         { $addToSet: { participants: { address: address, status: "accepted" } } },
       );
 

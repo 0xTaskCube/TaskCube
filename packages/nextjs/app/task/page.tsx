@@ -87,53 +87,74 @@ const QuestItem = ({
 
   return (
     <Link href={`/task/${id}`} className="block">
-      <div className="hover:bg-custom-hover cursor-pointer border border-[#424242] bg-base-400 p-4 rounded-lg mb-2">
+      <div className="hover:bg-custom-hover cursor-pointer border border-[#424242] bg-base-400 p-2 sm:p-4 rounded-lg mb-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             <div className="relative flex items-center">
               <div
-                className={`w-2 h-2 rounded-full mr-3 ${
+                className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-2 sm:mr-3 ${
                   isTaskExpired || isTaskCompleted ? "bg-red-500" : "bg-green-500 animate-pulse"
                 }`}
               ></div>
               {creatorAddress ? (
-                <BlockieAvatar address={creatorAddress} size={48} />
+                <div className="hidden sm:block">
+                  <BlockieAvatar address={creatorAddress} size={48} />
+                </div>
+              ) : null}
+              {creatorAddress ? (
+                <div className="sm:hidden">
+                  <BlockieAvatar address={creatorAddress} size={36} />
+                </div>
               ) : (
-                <div className="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">{name && name.length > 0 ? name.charAt(0).toUpperCase() : "?"}</span>
+                <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gray-600 rounded-full flex items-center justify-center">
+                  <span className="text-xl sm:text-2xl">
+                    {name && name.length > 0 ? name.charAt(0).toUpperCase() : "?"}
+                  </span>
                 </div>
               )}
             </div>
             <div>
-              <h3 className="text-white text-base mb-2 font-semibold truncate">{name || "未命名任务"}</h3>
-              <p className="text-gray-400 text-xs -mt-0.5 truncate mb-2">
+              <h3 className="text-white text-sm sm:text-base mb-1 sm:mb-2 font-semibold truncate max-w-[150px] sm:max-w-none">
+                {name || "未命名任务"}
+              </h3>
+              <p className="text-gray-400 text-[10px] sm:text-xs -mt-0.5 truncate mb-1 sm:mb-2">
                 {creatorAddress ? `${creatorAddress.slice(0, 6)}...${creatorAddress.slice(-4)}` : "未知创建者"}
               </p>
-              <div className="flex items-center space-x-2 text-xs">
-                <span className={`${getTaskTypeColor(taskType)} text-white px-2 py-1 rounded`}>
+              <div className="flex items-center space-x-1 sm:space-x-2 text-[10px] sm:text-xs">
+                <span className={`${getTaskTypeColor(taskType)} text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded`}>
                   {taskType === "individual" ? "个人任务" : "团队任务"}
                 </span>
-                <span className={`${getParticipationTypeColor(participationType)} text-white px-2 py-1 rounded`}>
+                <span
+                  className={`${getParticipationTypeColor(
+                    participationType,
+                  )} text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded`}
+                >
                   {participationType}
                 </span>
-                <span className={`${isTaskCompleted ? "bg-red-500" : "bg-gray-500"} text-white px-2 py-1 rounded`}>
+                <span
+                  className={`${
+                    isTaskCompleted ? "bg-red-500" : "bg-gray-500"
+                  } text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded`}
+                >
                   {completedCount} / {taskCount}
                 </span>
               </div>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-white text-lg font-semibold flex items-center justify-end">
+            <p className="text-white text-base sm:text-lg font-semibold flex items-center justify-end">
               <Image
                 src="https://cryptologos.cc/logos/tether-usdt-logo.png"
                 alt="USDT"
-                width={20}
-                height={20}
-                className="mr-2"
+                width={16}
+                height={16}
+                className="mr-1 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5"
               />
               {reward} USDT
             </p>
-            <p className="text-gray-400 text-sm mt-1">{isTaskCompleted ? "已结束" : formattedTimeRemaining}</p>
+            <p className="text-gray-400 text-xs sm:text-sm mt-1">
+              {isTaskCompleted ? "已结束" : formattedTimeRemaining}
+            </p>
           </div>
         </div>
       </div>

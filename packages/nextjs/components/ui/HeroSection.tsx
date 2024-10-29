@@ -27,8 +27,8 @@ const HeroSection = () => {
       }}
     >
       <div className="flex flex-col text-center items-center justify-center animate-fadeIn animation-delay-5 my-0 py-10 sm:py-32 md:pt-30 md:flex-row md:space-x-2 md:text-left">
-        <div className="md:w-2/5 ">
-          <Image src="/logo.png" alt="profile-pic" width={400} height={400} className="rounded-full" />
+        <div className="md:w-2/5 w-3/5 ">
+          <Image src="/logo.png" alt="profile-pic" width={400} height={400} className="rounded-full w-full h-auto" />
         </div>
         <div className="md:w-3/5">
           <h1 className="text-4xl text-white font-bold mt-6 md:mt-0 md:text-7xl"> Earn with Task Cube!</h1>
