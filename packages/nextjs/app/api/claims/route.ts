@@ -71,12 +71,28 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+// 只修改 GET 函数，POST 函数保持不变
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userAddress = searchParams.get("userAddress");
+    const status = searchParams.get("status");
+
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    const claims = await db.collection("claims").find({}).sort({ createdAt: -1 }).toArray();
+    // 构建查询条件
+    const query: any = {};
+    if (userAddress) query.userAddress = userAddress;
+    if (status) query.status = status;
+
+    // 添加日志以便调试
+    console.log("Claims 查询条件:", query);
+
+    const claims = await db.collection("claims").find(query).sort({ createdAt: -1 }).toArray();
+
+    // 添加日志以便调试
+    console.log(`找到 ${claims.length} 条记录`);
 
     return NextResponse.json({
       success: true,

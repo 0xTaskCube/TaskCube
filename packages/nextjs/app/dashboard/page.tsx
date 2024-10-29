@@ -186,12 +186,29 @@ const Dashboard = () => {
           const tasksResponse = await fetch(`/api/task?address=${address}`);
           const tasksData = await tasksResponse.json();
 
+          // 在 useEffect 中找到获取 bounty 数据的部分，替换这部分代码：
+
           // 4. 获取 bounty 数据
           const bountyResponse = await fetch(`/api/task/getBounty?address=${address}`);
           const bountyData = await bountyResponse.json();
 
           if (bountyData.success) {
-            setBounty(bountyData.bounty);
+            // 获取总奖励
+            const totalReward = parseFloat(bountyData.bounty);
+
+            // 获取已提现记录
+            const claimsResponse = await fetch(`/api/claims?userAddress=${address}&status=approved`);
+            const claimsData = await claimsResponse.json();
+
+            // 计算已提现总额
+            let totalClaimed = 0;
+            if (claimsData.success && claimsData.data) {
+              totalClaimed = claimsData.data.reduce((sum: number, claim: any) => sum + parseFloat(claim.amount), 0);
+            }
+
+            // 计算实际可用余额
+            const availableBounty = Math.max(0, totalReward - totalClaimed);
+            setBounty(availableBounty.toFixed(2));
 
             // 如果有奖励，找到对应的任务
             if (parseFloat(bountyData.bounty) > 0 && tasksData.acceptedTasks) {
