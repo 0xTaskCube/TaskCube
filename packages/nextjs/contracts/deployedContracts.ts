@@ -833,7 +833,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     TaskReward: {
-      address: "0x5e0b59474f4af900cB803738bCdAFD41529FCE78",
+      address: "0x8eA09912f59Ecf518885Eec106538c75802Dd3fc",
       abi: [
         {
           inputs: [
@@ -1031,6 +1031,25 @@ const deployedContracts = {
             },
           ],
           name: "TaskCreated",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "TokensWithdrawn",
           type: "event",
         },
         {
@@ -1394,6 +1413,24 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "withdrawTokens",
+          outputs: [],
+          stateMutability: "nonpayable",
           type: "function",
         },
       ],

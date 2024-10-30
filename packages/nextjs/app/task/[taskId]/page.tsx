@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Loading } from "../../../components/ui/Loading";
 import { useAccount } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
@@ -248,7 +249,15 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     return userLevelIndex >= taskLevelIndex;
   };
 
-  if (loading) return <div className="p-4">加载中...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="bg-base-400 p-8 rounded-lg">
+          <Loading size="lg" color="primary" />
+        </div>
+      </div>
+    );
+  }
   if (error) return <div className="p-4">错误: {error}</div>;
   if (!task) return <div className="p-4">未找到任务</div>;
 

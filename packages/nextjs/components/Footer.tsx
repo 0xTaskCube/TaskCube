@@ -16,15 +16,14 @@ export const Footer = () => {
   return (
     <div className="w-full py-5 px-6">
       <div className="flex flex-col items-center md:flex-row md:justify-between md:items-center gap-4">
-        {/* Left side content - hidden on screens smaller than 768px */}
         <div className="hidden md:flex md:flex-wrap md:items-center gap-2 ">
           {nativeCurrencyPrice > 0 && (
             <div className="btn btn-primary btn-sm font-normal cursor-pointer text-white">
-              <EthIcon className="h-4 w-4" />
+              <EthIcon className="h-5 w-5" />
               <span>{nativeCurrencyPrice.toFixed(2)}</span>
             </div>
           )}
-          {isLocalNetwork && (
+          {/* {isLocalNetwork && (
             <>
               <Faucet />
               <Link
@@ -36,7 +35,7 @@ export const Footer = () => {
                 <span>Block Explorer</span>
               </Link>
             </>
-          )}
+          )} */}
         </div>
 
         {/* Social media icons - always visible and centered */}

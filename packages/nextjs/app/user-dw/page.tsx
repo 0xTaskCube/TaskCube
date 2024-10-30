@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import { Loading } from "../../components/ui/Loading";
 import { ChevronDown, Info } from "lucide-react";
 import { formatUnits, parseUnits } from "viem";
 import { decodeEventLog } from "viem";
@@ -34,6 +35,7 @@ const DepositWithdrawalPage = () => {
   const [usdtAmount, setUsdtAmount] = useState("0");
   const [selectedToken] = useState("USDT");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [transactionRecords, setTransactionRecords] = useState<
     Array<{
       type: string;
@@ -148,6 +150,7 @@ const DepositWithdrawalPage = () => {
 
   const fetchTransactionRecords = useCallback(async () => {
     if (address) {
+      setIsLoadingRecords(true); // 开始加载
       try {
         const response = await fetch(
           `/api/DepositWithdrawal?userAddress=${address}&action=getTransactions&status=success,pending`,
@@ -161,6 +164,8 @@ const DepositWithdrawalPage = () => {
         }
       } catch (error) {
         console.error("获取交易记录失败:", error);
+      } finally {
+        setIsLoadingRecords(false); // 结束加载
       }
     }
   }, [address]);
@@ -386,14 +391,14 @@ const DepositWithdrawalPage = () => {
         ) : (
           <button
             className={`w-full ${
-              usdtAmount === "0" ? "bg-custom-hover" : "bg-primary"
+              isLoading || usdtAmount === "0" || usdtAmount === "" ? "bg-custom-hover" : "bg-primary"
             } hover:bg-opacity-80 text-white py-3 rounded-lg font-semibold cursor-pointer transition-colors duration-200`}
             onClick={handleTransaction}
             disabled={usdtAmount === "0" || isLoading || isContractLoading || !depositWithdrawContract}
           >
             {isLoading ? (
               <div className="flex items-center justify-center">
-                <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                <Loading size="sm" color="primary" className="mr-2" />
                 处理中...
               </div>
             ) : (
@@ -409,36 +414,46 @@ const DepositWithdrawalPage = () => {
       <div className="border border-[#424242] bg-base-400 rounded-xl shadow-lg p-4 w-full md:w-2/3">
         <h2 className="text-lg text-gray-400 mb-4">Transaction Records</h2>
         <div className="border border-[#424242] bg-base-400 rounded-xl shadow-lg px-4 py-6">
-          <ul className="space-y-0">
-            {transactionRecords.map((record, index) => (
-              <li
-                key={index}
-                className="flex justify-between items-center py-4 border-b border-[#424242] last:border-b-0"
-              >
-                <span className="text-gray-400 w-1/4">{record.date}</span>
-                <span className="text-gray-400 w-1/2 text-right">
-                  {record.type.charAt(0).toUpperCase() + record.type.slice(1).toLowerCase()}: {record.amount} USDT
-                </span>
-                <span
-                  className={`w-1/4 text-right ${
-                    record.status === "completed" || record.status === "success"
-                      ? "text-primary"
-                      : record.status === "pending"
-                      ? "text-yellow-500"
-                      : "text-primary"
-                  }`}
+          {isLoadingRecords ? (
+            <div className="flex justify-center items-center py-20">
+              <Loading size="lg" color="primary" />
+            </div>
+          ) : transactionRecords.length > 0 ? (
+            <ul className="space-y-0">
+              {transactionRecords.map((record, index) => (
+                <li
+                  key={index}
+                  className="flex justify-between items-center py-4 border-b border-[#424242] last:border-b-0"
                 >
-                  {record.status === "completed" || record.status === "success"
-                    ? "success"
-                    : record.status === "pending"
-                    ? "pending"
-                    : record.status === "failed"
-                    ? "fail"
-                    : record.status}
-                </span>
-              </li>
-            ))}
-          </ul>
+                  <span className="text-gray-400 w-1/4">{record.date}</span>
+                  <span className="text-gray-400 w-1/2 text-right">
+                    {record.type.charAt(0).toUpperCase() + record.type.slice(1).toLowerCase()}: {record.amount} USDT
+                  </span>
+                  <span
+                    className={`w-1/4 text-right ${
+                      record.status === "completed" || record.status === "success"
+                        ? "text-primary"
+                        : record.status === "pending"
+                        ? "text-yellow-500"
+                        : "text-primary"
+                    }`}
+                  >
+                    {record.status === "completed" || record.status === "success"
+                      ? "success"
+                      : record.status === "pending"
+                      ? "pending"
+                      : record.status === "failed"
+                      ? "fail"
+                      : record.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20">
+              <p className="text-gray-400">暂无交易记录</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

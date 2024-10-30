@@ -5,6 +5,7 @@ import Link from "next/link";
 import CheckIn from "../../components/ui/CheckIn";
 import { ClaimModal } from "../../components/ui/ClaimModal";
 import CubeIcon from "../../components/ui/CubeIcon";
+import { Loading } from "../../components/ui/Loading";
 import "../../styles/cube-icon.scss";
 import { FaInfoCircle } from "react-icons/fa";
 import { useAccount } from "wagmi";
@@ -144,10 +145,11 @@ const Dashboard = () => {
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
 
   const [bountyId, setBountyId] = useState<string | null>(null);
-
+  const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     const fetchData = async () => {
       if (address) {
+        setIsLoading(true);
         try {
           // 1. 获取余额
           const balanceResponse = await fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`);
@@ -260,6 +262,8 @@ const Dashboard = () => {
           }
         } catch (error) {
           console.error("获取数据失败:", error);
+        } finally {
+          setIsLoading(false);
         }
       }
     };
@@ -323,7 +327,36 @@ const Dashboard = () => {
             <ClipboardDocumentListIcon className="h-6 w-6 mr-2" />
             Task record
           </h1>
-          {completedTasks.length > 0 ? (
+
+          {isLoading ? (
+            <table className="w-full border-collapse table-fixed">
+              <thead>
+                <tr className="bg-base-400">
+                  <th className="text-left border-[#424242] py-3 pl-4 sm:pl-6 pr-2 sm:pr-4 w-1/2 sm:w-[45%] text-gray-400 font-medium text-sm sm:text-base">
+                    Name
+                  </th>
+                  <th className="text-left py-3 px-2 sm:px-4 w-1/4 sm:w-[20%] text-gray-400 font-medium text-sm sm:text-base">
+                    Reward
+                  </th>
+                  <th className="text-left py-3 px-2 sm:px-4 w-1/4 sm:w-[20%] text-gray-400 font-medium text-sm sm:text-base">
+                    Inviter
+                  </th>
+                  <th className="hidden sm:table-cell text-right py-3 pl-4 pr-6 sm:w-[15%] text-gray-400 font-medium text-sm sm:text-base">
+                    Date
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={4}>
+                    <div className="flex justify-center items-center py-20">
+                      <Loading size="lg" color="primary" />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          ) : completedTasks.length > 0 ? (
             <table className="w-full border-collapse table-fixed">
               <thead>
                 <tr className="bg-base-400">

@@ -2,46 +2,55 @@
 
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { Loading } from "../../components/ui/Loading";
 import ParticlesComponent from "../../components/ui/ParticlesComponent";
 import { useAccount } from "wagmi";
 
-// 动态引入 HighchartsTreegraph 组件，并禁用 SSR
+// 动态引入 HighchartsTreegraph 组件
 const HighchartsTreegraph = dynamic(() => import("./_components/HighchartsTreegraph"), { ssr: false });
 
 const TeamPage: React.FC = () => {
-  const [treeData, setTreeData] = useState<any[]>([]); // 保存树状数据
-  const [loading, setLoading] = useState<boolean>(true); // 加载状态
-  const [error, setError] = useState<string | null>(null); // 错误状态
-  const { address } = useAccount(); // 获取当前用户的钱包地址
+  const [treeData, setTreeData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const { address } = useAccount();
 
   useEffect(() => {
-    if (!address) return; // 如果没有钱包连接，则返回
+    if (!address) return;
 
-    // 从 API 获取邀请数据
     const fetchInviteData = async () => {
       try {
-        const response = await fetch(`/api/invites?inviter=${address}`); // 使用钱包地址发起请求
+        const response = await fetch(`/api/invites?inviter=${address}`);
         const data = await response.json();
-        setTreeData(data); // 将响应的数据设为树状数据
-        setLoading(false); // 关闭加载状态
+        setTreeData(data);
+        setLoading(false);
       } catch (err) {
         setError("Failed to fetch invite data");
         setLoading(false);
       }
     };
 
-    fetchInviteData(); // 执行请求
+    fetchInviteData();
   }, [address]);
 
   if (loading) {
-    return <div>Loading...</div>; // 显示加载状态
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="bg-base-400 p-8 rounded-lg">
+          <Loading size="lg" color="primary" />
+        </div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div>Error: {error}</div>; // 显示错误状态
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="border border-[#424242] bg-base-400 p-8 rounded-lg text-white">Error: {error}</div>
+      </div>
+    );
   }
 
-  // 渲染页面内容
   return (
     <div className="bg-black text-white flex justify-center items-center p-6">
       <div className="w-full">

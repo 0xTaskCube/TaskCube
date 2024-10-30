@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { Loading } from "./Loading";
 import { decodeEventLog, parseUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
@@ -192,7 +193,7 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
             <button
               className={`w-full py-3 rounded-lg font-semibold ${
                 loading || !claimAmount || Number(claimAmount) <= 0 || Number(claimAmount) > Number(availableAmount)
-                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  ? "bg-black text-white cursor-not-allowed"
                   : "bg-primary hover:bg-opacity-80 text-white"
               }`}
               onClick={handleClaimSubmit}
@@ -202,7 +203,7 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
             >
               {loading ? (
                 <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                  <Loading size="sm" color="primary" className="mr-2" />
                   处理中...
                 </div>
               ) : (

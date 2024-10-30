@@ -45,7 +45,7 @@ type DeployedContracts = {
       inheritedFunctions: Record<string, never>;
     };
     TaskReward: {
-      address: "0x5e0b59474f4af900cB803738bCdAFD41529FCE78";
+      address: "0x8eA09912f59Ecf518885Eec106538c75802Dd3fc";
       abi: ReadonlyArray<AbiItem>;
       inheritedFunctions: Record<string, never>;
     };
@@ -211,7 +211,7 @@ export async function PUT(request: Request) {
       const claims = await collection
         .find({
           _id: { $in: objectIds },
-          status: { $ne: "approved" }, 
+          status: { $ne: "approved" },
         })
         .toArray();
 

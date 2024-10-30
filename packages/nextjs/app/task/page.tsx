@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Loading } from "../../components/ui/Loading";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { OfficialBadge, isOfficialTask } from "~~/components/ui/OfficialTask";
 
@@ -167,9 +168,11 @@ const QuestItem = ({
 const AllQuestsPage = () => {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [visibleQuests, setVisibleQuests] = useState(10);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchTasks = async () => {
+      setIsLoading(true);
       try {
         const response = await fetch("/api/task");
         const data = await response.json();
@@ -188,6 +191,8 @@ const AllQuestsPage = () => {
         setQuests(formattedQuests);
       } catch (error) {
         console.error("获取任务失败:", error);
+      } finally {
+        setIsLoading(false); // 结束加载
       }
     };
     fetchTasks();
@@ -251,12 +256,24 @@ const AllQuestsPage = () => {
         </div>
 
         <div className="space-y-2">
-          {quests.slice(0, visibleQuests).map((quest, index) => (
-            <QuestItem key={index} {...quest} />
-          ))}
+          {isLoading ? (
+            <div className="bg-base-400 p-4 rounded-lg">
+              <div className="flex justify-center items-center py-20">
+                <Loading size="lg" color="primary" />
+              </div>
+            </div>
+          ) : quests.length > 0 ? (
+            quests.slice(0, visibleQuests).map((quest, index) => <QuestItem key={index} {...quest} />)
+          ) : (
+            <div className="border border-[#424242] bg-base-400 p-4 rounded-lg">
+              <div className="flex flex-col items-center justify-center py-12">
+                <p className="text-gray-400 mb-4">暂无任务</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {visibleQuests < quests.length && (
+        {!isLoading && visibleQuests < quests.length && (
           <button
             onClick={handleLoadMore}
             className="w-full border border-[#424242] bg-base-400 text-white py-3 rounded-lg mt-4 hover:bg-primary transition-colors"
