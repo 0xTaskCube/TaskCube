@@ -308,29 +308,29 @@ export async function PUT(request: NextRequest) {
           await session.withTransaction(async () => {
             // 1. 计算基础奖励金额
             const userReward = reward * 0.9; // 90% 给完成任务的用户
-            const platformFee = reward * 0.05; // 5% 平台手续费
-            let unclaimedReward = reward * 0.05; // 剩余5%默认为未认领奖励
+            const platformFee = reward * 0.04; // 4% 平台手续费
+            let unclaimedReward = reward * 0.06; // 剩余6%默认为未认领奖励
 
             // 2. 查找邀请关系并分配邀请奖励
             const invite = await db.collection("invites").findOne({ invitee: participantAddress });
             if (invite) {
-              // 更新直接邀请者奖励 (3%)
+              // 更新直接邀请者奖励 (5%)
               await db
                 .collection("users")
-                .updateOne({ address: invite.inviter }, { $inc: { bounty: reward * 0.03 } }, { upsert: true, session });
-              unclaimedReward -= reward * 0.03;
+                .updateOne({ address: invite.inviter }, { $inc: { bounty: reward * 0.05 } }, { upsert: true, session });
+              unclaimedReward -= reward * 0.05;
 
-              // 查找并更新二级邀请者奖励 (2%)
+              // 查找并更新二级邀请者奖励 (1%)
               const secondLevelInvite = await db.collection("invites").findOne({ invitee: invite.inviter });
               if (secondLevelInvite) {
                 await db
                   .collection("users")
                   .updateOne(
                     { address: secondLevelInvite.inviter },
-                    { $inc: { bounty: reward * 0.02 } },
+                    { $inc: { bounty: reward * 0.01 } },
                     { upsert: true, session },
                   );
-                unclaimedReward -= reward * 0.02;
+                unclaimedReward -= reward * 0.01;
               }
             }
 
@@ -361,12 +361,12 @@ export async function PUT(request: NextRequest) {
                 userReward,
                 platformFee,
                 directInviterAddress: invite?.inviter || null,
-                directInviterReward: invite ? reward * 0.03 : 0,
+                directInviterReward: invite ? reward * 0.05 : 0,
                 indirectInviterAddress: invite
                   ? (await db.collection("invites").findOne({ invitee: invite.inviter }))?.inviter || null
                   : null,
                 indirectInviterReward:
-                  invite && (await db.collection("invites").findOne({ invitee: invite.inviter })) ? reward * 0.02 : 0,
+                  invite && (await db.collection("invites").findOne({ invitee: invite.inviter })) ? reward * 0.01 : 0,
                 unclaimedReward,
                 distributedAt: new Date(),
               },

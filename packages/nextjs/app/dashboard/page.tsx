@@ -213,6 +213,7 @@ const Dashboard = () => {
             setBounty(availableBounty.toFixed(2));
 
             // 如果有奖励，找到对应的任务
+            // 修改这里：不管余额多少，只要有奖励就找到对应的任务
             if (parseFloat(bountyData.bounty) > 0 && tasksData.acceptedTasks) {
               // 找到最新的已完成任务
               const latestTask = tasksData.acceptedTasks

@@ -51,8 +51,6 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
       const response = await fetch(`/api/task?taskId=${bountyId}`);
       const data = await response.json();
 
-      console.log("获取到的任务数据:", data);
-
       if (!data.task) {
         throw new Error("找不到任务信息");
       }
@@ -64,12 +62,6 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
 
       const parsedAmount = parseUnits(claimAmount, 6);
 
-      console.log("准备提交申请", {
-        onChainTaskId,
-        parsedAmount: parsedAmount.toString(),
-        bountyId,
-      });
-
       // 2. 调用合约提交申领
       const { request } = await publicClient.simulateContract({
         account: address,
@@ -80,32 +72,30 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
       });
 
       const claimTx = await walletClient.writeContract(request);
-      console.log("交易已发送，等待确认...", claimTx);
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
-      console.log("交易已确认:", receipt);
 
       // 3. 从事件中获取 claimId
-      const claimSubmittedEvent = receipt.logs
-        .map(log => {
-          try {
-            return decodeEventLog({
-              abi: taskRewardContract.abi,
-              data: log.data,
-              topics: log.topics,
-            });
-          } catch {
-            return undefined;
+      let foundClaimId = "";
+      for (const log of receipt.logs) {
+        try {
+          const event = decodeEventLog({
+            abi: taskRewardContract.abi,
+            data: log.data,
+            topics: log.topics,
+          });
+          if (event.eventName === "ClaimSubmitted" && event.args.claimId) {
+            foundClaimId = event.args.claimId.toString();
+            break;
           }
-        })
-        .find(event => event?.eventName === "ClaimSubmitted");
-
-      if (!claimSubmittedEvent?.args?.claimId) {
-        throw new Error("未能获取到 ClaimId");
+        } catch {
+          continue;
+        }
       }
 
-      const contractRequestId = claimSubmittedEvent.args.claimId.toString();
-      console.log("获取到的 ClaimId:", contractRequestId);
+      if (!foundClaimId) {
+        throw new Error("未能获取到 ClaimId");
+      }
 
       // 4. 保存申领记录到数据库
       const saveResponse = await fetch("/api/claims", {
@@ -118,7 +108,7 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
           amount: claimAmount,
           bountyId,
           taskId: onChainTaskId,
-          contractRequestId,
+          contractRequestId: foundClaimId,
           status: "pending",
           transactionHash: receipt.transactionHash,
         }),

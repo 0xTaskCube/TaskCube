@@ -2,10 +2,11 @@
 
 import React from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import TextLoop from "../../lib/TextLoop";
 
 const HeroSection = () => {
+  const router = useRouter();
   const loopItems = [
     "Find a task that suits you.",
     "Post a task.",
@@ -15,6 +16,21 @@ const HeroSection = () => {
     "Take control of your wallet.",
     "Earn without cost.",
   ];
+
+  const handleStartClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // 获取当前 URL 中的 inviter 参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviter = urlParams.get("inviter");
+
+    // 如果有 inviter 参数，则带着参数跳转
+    if (inviter) {
+      router.push(`/start?inviter=${inviter}`);
+    } else {
+      router.push("/start");
+    }
+  };
+
   return (
     <section
       id="home"
@@ -40,12 +56,12 @@ const HeroSection = () => {
             </p>
             <br />
           </h1>
-          <Link
-            href="/start"
+          <button
+            onClick={handleStartClick}
             className="hover:cursor-pointer shadow-xl hover:shadow-2xl text-neutral-100 font-semibold px-6 py-3 bg-teal-600 rounded-lg hover:bg-teal-700"
           >
             Get Started
-          </Link>
+          </button>
         </div>
       </div>
     </section>

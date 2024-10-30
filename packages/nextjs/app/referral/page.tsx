@@ -4,38 +4,27 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FaLink, FaShareAlt } from "react-icons/fa";
 import { useAccount } from "wagmi";
+import { Loading } from "~~/components/ui/Loading";
 
 const ReferralPage = () => {
   const { address: currentAddress } = useAccount();
-  const [referrerAddress, setReferrerAddress] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [referralLink, setReferralLink] = useState("");
   const [referralReward, setReferralReward] = useState("0");
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // 生成邀请链接
   useEffect(() => {
     if (typeof window !== "undefined" && currentAddress) {
       const baseUrl = `${window.location.protocol}//${window.location.host}`;
+      // 修改为指向根路径
       setReferralLink(`${baseUrl}/?inviter=${currentAddress}`);
+      setLoading(false);
     }
   }, [currentAddress]);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const inviter = urlParams.get("inviter");
-
-    if (inviter && currentAddress) {
-      setReferrerAddress(inviter);
-      saveInvitation(inviter, currentAddress);
-    }
-  }, [currentAddress]);
-
+  // 获取邀请奖励
   useEffect(() => {
     const fetchReferralRewards = async () => {
       if (currentAddress) {
@@ -44,7 +33,6 @@ const ReferralPage = () => {
           const data = await response.json();
 
           if (data.success) {
-            // 计算直接和间接邀请奖励的总和
             const directRewards = parseFloat(data.details.directInviterRewards);
             const indirectRewards = parseFloat(data.details.indirectInviterRewards);
             const totalReferralRewards = (directRewards + indirectRewards).toFixed(0);
@@ -59,53 +47,15 @@ const ReferralPage = () => {
     fetchReferralRewards();
   }, [currentAddress]);
 
-  const saveInvitation = async (inviter: string, invitee: string) => {
-    try {
-      const response = await fetch("/api/invites", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ inviter, invitee }),
-      });
-
-      const data = await response.json();
-      if (data.status === "success") {
-        console.log("Invitation saved successfully");
-        router.push("/dashboard");
-      } else {
-        console.error("Failed to save invitation:", data.message);
-      }
-    } catch (error) {
-      console.error("Error saving invitation data:", error);
-    }
+  // 复制链接
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(referralLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  useEffect(() => {
-    if (referrerAddress && currentAddress) {
-      fetch("/api/invites", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ inviter: referrerAddress, invitee: currentAddress }),
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === "success") {
-            console.log(data.message);
-          } else {
-            console.error(data.message);
-          }
-        })
-        .catch(error => {
-          console.error("Error saving invitation data:", error);
-        });
-    }
-  }, [referrerAddress, currentAddress]);
-  // 添加 Twitter 分享函数
+  // Twitter分享
   const handleTwitterShare = () => {
-    // 准备分享文案
     const tweetText = encodeURIComponent(
       `🎉 Join TaskCube - Your Gateway to Web3 Tasks! 🚀\n\n` +
         `💰 Complete tasks, earn rewards\n` +
@@ -115,15 +65,21 @@ const ReferralPage = () => {
     );
 
     const twitterShareUrl = `https://x.com/intent/tweet?text=${tweetText}`;
-
-    // 在新标签页中打开
     window.open(twitterShareUrl, "_blank");
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loading />
+      </div>
+    );
+  }
 
   return (
     <div className="md:mt-20 flex flex-col items-center justify-center bg-black text-white p-4">
       {/* Top Section */}
-      <div className=" border border-[#424242] bg-base-400 rounded-xl shadow-lg p-6 max-w-4xl w-full text-center mb-8">
+      <div className="border border-[#424242] bg-base-400 rounded-xl shadow-lg p-6 max-w-4xl w-full text-center mb-8">
         <h1 className="text-2xl font-bold">You earn 10% of the points your friends make</h1>
         <p className="text-sm mt-4">
           Referral deposits are supported on Ethereum mainnet and Layer 2s. To activate the referral, users need to use
@@ -144,7 +100,7 @@ const ReferralPage = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className=" bg-base-400 rounded-xl shadow-lg  w-full md:w-1/2 flex flex-col gap-4">
+        <div className="bg-base-400 rounded-xl shadow-lg w-full md:w-1/2 flex flex-col gap-4">
           <button
             className="flex items-center justify-center gap-2 bg-black text-white py-3 px-4 rounded-lg border border-[#424242] hover:bg-primary mb-2"
             onClick={handleCopyLink}

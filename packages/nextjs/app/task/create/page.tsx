@@ -13,6 +13,7 @@ import { decodeEventLog, parseUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { ArrowLeftIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
+import { Loading } from "~~/components/ui/Loading";
 import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -498,7 +499,14 @@ const CreateTaskPage = () => {
                   className="w-full bg-primary hover:bg-opacity-80 text-white py-3 rounded-lg font-semibold cursor-pointer transition-colors duration-200"
                   disabled={isLoading}
                 >
-                  {isLoading ? "发布中..." : "发布任务"}
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <Loading size="sm" color="primary" className="mr-2" />
+                      发布中...
+                    </div>
+                  ) : (
+                    "发布任务"
+                  )}
                 </button>
               )}
             </form>

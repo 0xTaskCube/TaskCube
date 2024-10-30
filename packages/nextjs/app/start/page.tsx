@@ -45,51 +45,81 @@ const StartPage: React.FC = () => {
   const [alreadyInvitedError, setAlreadyInvitedError] = useState(false);
   const [isStartButtonEnabled, setIsStartButtonEnabled] = useState(false);
 
+  // 检查被邀请状态
   const checkInviteeStatus = async () => {
-    if (isConnected && address) {
-      try {
-        const response = await fetch(`/api/invites?invitee=${address}`);
-        const data = await response.json();
+    if (!isConnected || !address) return;
 
-        if (data.status === "invited") {
-          setIsStartButtonEnabled(true);
-          setIsInviterLocked(true);
-          setInviterCode(data.inviter);
-        } else {
-          setIsStartButtonEnabled(false);
-          setIsInviterLocked(false);
-          setInviterCode("");
-        }
-      } catch (error) {
-        console.error("检查被邀请者状态失败:", error);
-      }
-    }
-  };
-  useEffect(() => {
-    if (isConnected && address) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const inviter = urlParams.get("inviter");
-      if (inviter) {
-        checkAndSetInviter(inviter);
-      } else {
-        checkInviteeStatus();
-      }
-    }
-  }, [isConnected, address]);
-
-  const checkAndSetInviter = async (inviter: string) => {
+    console.log("检查被邀请状态:", address);
     try {
       const response = await fetch(`/api/invites?invitee=${address}`);
       const data = await response.json();
+      console.log("被邀请状态响应:", data);
 
       if (data.status === "invited") {
-        // 用户已被邀请，显示其实际的邀请者
+        console.log("用户已被邀请");
+        setIsStartButtonEnabled(true);
+        setIsInviterLocked(true);
+        setInviterCode(data.inviter);
+      } else {
+        console.log("用户未被邀请");
+        setIsStartButtonEnabled(false);
+        setIsInviterLocked(false);
+        setInviterCode("");
+      }
+    } catch (error) {
+      console.error("检查被邀请状态失败:", error);
+    }
+  };
+
+  // 处理邀请关系
+  useEffect(() => {
+    const handleInvitation = async () => {
+      if (!isConnected || !address) return;
+
+      console.log("处理邀请关系:", { isConnected, address });
+
+      // 1. 先从当前 URL 获取 inviter 参数
+      const urlParams = new URLSearchParams(window.location.search);
+      let inviter = urlParams.get("inviter");
+
+      // 2. 如果当前 URL 没有，尝试从根页面的 URL 获取
+      if (!inviter && typeof window !== "undefined") {
+        const rootParams = new URLSearchParams(document.referrer.split("?")[1] || "");
+        inviter = rootParams.get("inviter");
+      }
+
+      console.log("获取到的邀请人:", inviter);
+
+      if (inviter) {
+        await checkAndSetInviter(inviter);
+      } else {
+        await checkInviteeStatus();
+      }
+    };
+
+    handleInvitation();
+  }, [isConnected, address]);
+  // 检查并设置邀请人
+  const checkAndSetInviter = async (inviter: string) => {
+    if (!address) return;
+
+    console.log("检查邀请状态:", { inviter, address });
+    try {
+      const response = await fetch(`/api/invites?invitee=${address}`);
+      const data = await response.json();
+      console.log("检查邀请响应:", data);
+
+      if (data.status === "invited") {
+        console.log("用户已被邀请，显示实际邀请人");
         setInviterCode(data.inviter);
         setIsInviterLocked(true);
         setIsStartButtonEnabled(true);
+      } else if (inviter.toLowerCase() === address.toLowerCase()) {
+        console.log("不能邀请自己");
+        setSelfInviteError(true);
       } else {
-        // 用户未被邀请，尝试保存新的邀请关系
-        saveInvitation(inviter, address as string);
+        console.log("保存新的邀请关系");
+        await saveInvitation(inviter, address);
       }
     } catch (error) {
       console.error("检查邀请状态失败:", error);
@@ -97,7 +127,9 @@ const StartPage: React.FC = () => {
     }
   };
 
+  // 保存邀请关系
   const saveInvitation = async (inviter: string, invitee: string) => {
+    console.log("保存邀请关系:", { inviter, invitee });
     try {
       const response = await fetch("/api/invites", {
         method: "POST",
@@ -108,16 +140,20 @@ const StartPage: React.FC = () => {
       });
 
       const data = await response.json();
+      console.log("保存邀请响应:", data);
+
       if (data.status === "success") {
         console.log("邀请保存成功");
         setInviterCode(inviter);
         setIsInviterLocked(true);
         setIsStartButtonEnabled(true);
+        setInviterError(false);
+        setAlreadyInvitedError(false);
       } else {
         console.error("保存邀请失败:", data.message);
         if (data.message.includes("已经被邀请过")) {
           setAlreadyInvitedError(true);
-          checkInviteeStatus(); // 获取实际的邀请者
+          await checkInviteeStatus(); // 获取实际的邀请者
         } else {
           setInviterError(true);
         }
@@ -128,6 +164,7 @@ const StartPage: React.FC = () => {
     }
   };
 
+  // 处理邀请码输入
   const handleInviterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const code = e.target.value;
     setInviterCode(code);
@@ -148,62 +185,37 @@ const StartPage: React.FC = () => {
     }
   };
 
+  // 锁定邀请码
   const handleLockInviter = async () => {
-    if (isInviterValid && inviterCode.trim() !== "" && !selfInviteError) {
-      setIsInviterLocked(true);
-      try {
-        const response = await fetch("/api/invites", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            inviter: inviterCode,
-            invitee: address,
-          }),
-        });
+    if (!isInviterValid || !inviterCode.trim() || selfInviteError || !address) return;
 
-        const data = await response.json();
+    console.log("锁定邀请码:", inviterCode);
+    setIsInviterLocked(true);
 
-        if (data.status === "error") {
-          if (data.message.includes("已经被邀请过")) {
-            setAlreadyInvitedError(true);
-          } else {
-            setInviterError(true);
-          }
-          console.error("Failed to save invite:", data.message);
-        } else {
-          console.log("Invite saved successfully:", data);
-          setInviterError(false);
-          setAlreadyInvitedError(false);
-        }
-      } catch (error) {
-        console.error("Error saving invite:", error);
-        setInviterError(true);
-      }
+    try {
+      await saveInvitation(inviterCode, address);
+    } catch (error) {
+      console.error("锁定邀请码失败:", error);
+      setInviterError(true);
+      setIsInviterLocked(false);
     }
   };
 
+  // 开始任务
   const handleStartJourney = () => {
     if (!isConnected) {
       setWalletError(true);
-    } else {
-      setWalletError(false);
+      return;
     }
 
-    if (!isInviterValid || inviterCode.trim() === "" || selfInviteError) {
+    // 只在用户输入了无效邀请码时显示错误
+    if (inviterCode.trim() && (!isInviterValid || selfInviteError)) {
       setInviterError(true);
-    } else {
-      setInviterError(false);
+      return;
     }
 
-    if (
-      isConnected &&
-      (isStartButtonEnabled ||
-        (isInviterValid && inviterCode.trim() !== "" && !selfInviteError && isInviterLocked && !alreadyInvitedError))
-    ) {
-      router.push("/dashboard");
-    }
+    console.log("开始任务");
+    router.push("/dashboard");
   };
 
   return (
@@ -233,6 +245,7 @@ const StartPage: React.FC = () => {
               }
             />
             {walletError && <p className="text-red-500">请连接钱包</p>}
+
             <ConnectionStep
               number="02"
               label="Inviter"
@@ -271,9 +284,12 @@ const StartPage: React.FC = () => {
 
           <button
             onClick={handleStartJourney}
-            disabled={!isStartButtonEnabled && (!isInviterLocked || alreadyInvitedError)}
+            // 修改 disabled 属性的类型
+            disabled={Boolean(alreadyInvitedError || selfInviteError || (inviterCode.trim() && !isInviterValid))}
             className={`block w-full mt-6 sm:mt-8 ${
-              isStartButtonEnabled || (isInviterLocked && !alreadyInvitedError) ? "bg-primary" : "bg-custom-hover"
+              alreadyInvitedError || selfInviteError || (inviterCode.trim() && !isInviterValid)
+                ? "bg-custom-hover"
+                : "bg-primary"
             } hover:bg-opacity-80 text-white py-3 rounded-lg transition-colors text-sm sm:text-base text-center`}
           >
             Start the journey
