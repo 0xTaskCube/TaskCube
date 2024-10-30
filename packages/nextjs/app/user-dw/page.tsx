@@ -6,6 +6,7 @@ import { ChevronDown, Info } from "lucide-react";
 import { formatUnits, parseUnits } from "viem";
 import { decodeEventLog } from "viem";
 import { useAccount, useBalance, usePublicClient, useWalletClient } from "wagmi";
+import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
@@ -390,7 +391,17 @@ const DepositWithdrawalPage = () => {
             onClick={handleTransaction}
             disabled={usdtAmount === "0" || isLoading || isContractLoading || !depositWithdrawContract}
           >
-            {isLoading ? "处理中..." : activeTab === "deposit" ? "Deposit" : "Withdraw"}
+            {isLoading ? (
+              <div className="flex items-center justify-center">
+                <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                处理中...
+              </div>
+            ) : (
+              <div className="flex items-center justify-center">
+                <ClipboardDocumentCheckIcon className="h-5 w-5 mr-2" />
+                {activeTab === "deposit" ? "Deposit" : "Withdraw"}
+              </div>
+            )}
           </button>
         )}
       </div>

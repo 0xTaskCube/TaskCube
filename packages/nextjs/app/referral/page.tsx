@@ -103,6 +103,22 @@ const ReferralPage = () => {
         });
     }
   }, [referrerAddress, currentAddress]);
+  // 添加 Twitter 分享函数
+  const handleTwitterShare = () => {
+    // 准备分享文案
+    const tweetText = encodeURIComponent(
+      `🎉 Join TaskCube - Your Gateway to Web3 Tasks! 🚀\n\n` +
+        `💰 Complete tasks, earn rewards\n` +
+        `🤝 Join using my referral link:\n` +
+        `${referralLink}\n\n` +
+        `#TaskCube #Web3 #Crypto`,
+    );
+
+    const twitterShareUrl = `https://x.com/intent/tweet?text=${tweetText}`;
+
+    // 在新标签页中打开
+    window.open(twitterShareUrl, "_blank");
+  };
 
   return (
     <div className="md:mt-20 flex flex-col items-center justify-center bg-black text-white p-4">
@@ -136,9 +152,12 @@ const ReferralPage = () => {
             <FaLink size={20} />
             {copied ? "Link Copied!" : "Copy referral link"}
           </button>
-          <button className="flex items-center justify-center gap-2 bg-black text-white py-3 px-4 rounded-lg border border-[#424242] hover:bg-primary">
+          <button
+            onClick={handleTwitterShare}
+            className="flex items-center justify-center gap-2 bg-black text-white py-3 px-4 rounded-lg border border-[#424242] hover:bg-primary"
+          >
             <FaShareAlt size={20} />
-            Share
+            Share on X
           </button>
         </div>
       </div>

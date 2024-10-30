@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
+import { OfficialBadge, isOfficialTask } from "~~/components/ui/OfficialTask";
 
 interface Quest {
   id: string;
@@ -114,8 +115,9 @@ const QuestItem = ({
               )}
             </div>
             <div>
-              <h3 className="text-white text-sm sm:text-base mb-1 sm:mb-2 font-semibold truncate max-w-[150px] sm:max-w-none">
+              <h3 className="text-white text-sm sm:text-base mb-1 sm:mb-2 font-semibold truncate max-w-[150px] sm:max-w-none flex items-center">
                 {name || "未命名任务"}
+                {creatorAddress && isOfficialTask(creatorAddress) && <OfficialBadge />}
               </h3>
               <p className="text-gray-400 text-[10px] sm:text-xs -mt-0.5 truncate mb-1 sm:mb-2">
                 {creatorAddress ? `${creatorAddress.slice(0, 6)}...${creatorAddress.slice(-4)}` : "未知创建者"}

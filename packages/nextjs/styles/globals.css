@@ -30,6 +30,21 @@ p {
     opacity: 1;
   }
 }
+@keyframes shine {
+  0% {
+    filter: brightness(1) saturate(1);
+  }
+  50% {
+    filter: brightness(1.3) saturate(1.2);
+  }
+  100% {
+    filter: brightness(1) saturate(1);
+  }
+}
+
+.animate-shine {
+  animation: shine 2s infinite;
+}
 .react-datepicker__calendar-icon {
   filter: invert(1);
 }

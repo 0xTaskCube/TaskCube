@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
+import { OfficialBadge, isOfficialTask } from "~~/components/ui/OfficialTask";
 import { notification } from "~~/utils/scaffold-eth";
 
 type LevelType = "Initiate" | "Operative" | "Enforcer" | "Vanguard" | "Prime";
@@ -270,9 +271,11 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   </div>
                 )}
                 <div className="ml-4">
-                  <h1 className="text-xl sm:text-2xl font-bold">{task.title}</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold flex items-center">
+                    {task.title}
+                    {task.creatorAddress && isOfficialTask(task.creatorAddress) && <OfficialBadge />}
+                  </h1>
                   <p className="text-sm sm:text-base text-gray-400 mt-1">
-                    {" "}
                     由{" "}
                     {task.creatorAddress
                       ? `${task.creatorAddress.slice(0, 6)}...${task.creatorAddress.slice(-4)}`

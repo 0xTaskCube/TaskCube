@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { decodeEventLog, parseUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { BanknotesIcon } from "@heroicons/react/24/outline";
+import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
 import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -148,7 +148,6 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-base-300 rounded-lg p-6 w-96 relative">
-        {/* 关闭按钮 */}
         <button onClick={onClose} className="absolute right-3 top-3 text-gray-400 hover:text-white">
           ✕
         </button>
@@ -156,7 +155,7 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
         <h3 className="text-xl font-bold mb-6 text-white">领取奖励</h3>
 
         <div className="space-y-4">
-          <div className="bg-base-200 rounded-lg p-4">
+          <div className="border border-[#424242] bg-black rounded-lg p-4">
             <span className="text-sm text-gray-400">可领取金额:</span>
             <span className="text-white ml-2 text-lg font-semibold">{availableAmount} USDT</span>
           </div>
@@ -175,7 +174,8 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
                 placeholder="输入领取数量"
                 value={claimAmount}
                 onChange={e => setClaimAmount(e.target.value)}
-                className="w-full bg-black text-white pl-10 pr-20 py-3 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full bg-black text-white pl-10 pr-20 py-3 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                onWheel={e => e.currentTarget.blur()}
               />
               <button
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary text-sm hover:text-primary-focus"
@@ -207,7 +207,7 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
-                  <BanknotesIcon className="h-5 w-5 mr-2" />
+                  <ClipboardDocumentCheckIcon className="h-5 w-5 mr-2" />
                   提交申请
                 </div>
               )}

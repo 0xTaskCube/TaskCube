@@ -450,6 +450,7 @@ const CreateTaskPage = () => {
                   min="1"
                   step="1"
                   className="w-full bg-black text-white p-2 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onWheel={e => e.currentTarget.blur()}
                 />
               </div>
               <div>

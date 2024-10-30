@@ -211,7 +211,7 @@ export async function PUT(request: Request) {
       const claims = await collection
         .find({
           _id: { $in: objectIds },
-          status: { $ne: "approved" }, // 只处理未批准的申请
+          status: { $ne: "approved" }, 
         })
         .toArray();
 
