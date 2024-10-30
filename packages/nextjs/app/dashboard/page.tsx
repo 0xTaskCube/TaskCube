@@ -274,16 +274,22 @@ const Dashboard = () => {
 
   // 3. 修改 handleClaimBounty 函数
   const handleClaimBounty = useCallback(() => {
-    if (!bounty || parseFloat(bounty) <= 0) {
-      notification.error("没有可领取的奖励");
-      return;
+    console.log("Claim 按钮点击时的状态:", {
+      bounty,
+      bountyId,
+      hasBounty: parseFloat(bounty) > 0,
+    });
+
+    // 修改这里：如果是邀请奖励，不需要检查 bountyId
+    if (bountyId) {
+      // 任务完成奖励
+      console.log("打开任务奖励领取模态框", { bounty, bountyId });
+      setIsClaimModalOpen(true);
+    } else {
+      // 邀请奖励
+      console.log("打开邀请奖励领取模态框", { bounty });
+      setIsClaimModalOpen(true);
     }
-    if (!bountyId) {
-      notification.error("未找到可领取的任务");
-      return;
-    }
-    console.log("打开领取模态框", { bounty, bountyId });
-    setIsClaimModalOpen(true);
   }, [bounty, bountyId]);
 
   const levelTooltip = `
@@ -405,7 +411,8 @@ const Dashboard = () => {
           isOpen={isClaimModalOpen}
           onClose={() => setIsClaimModalOpen(false)}
           availableAmount={bounty}
-          bountyId={bountyId || ""}
+          bountyId={bountyId || ""} // 如果是邀请奖励，bountyId 为空字符串
+          type={bountyId ? "task" : "invite"} // 添加类型区分
         />
       </div>
     </div>

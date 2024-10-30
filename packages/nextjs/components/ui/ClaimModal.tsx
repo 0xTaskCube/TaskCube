@@ -14,9 +14,16 @@ interface ClaimModalProps {
   onClose: () => void;
   availableAmount: string;
   bountyId: string;
+  type?: "task" | "invite";
 }
 
-export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: ClaimModalProps) => {
+export const ClaimModal: React.FC<ClaimModalProps> = ({
+  isOpen,
+  onClose,
+  availableAmount,
+  bountyId,
+  type = "task",
+}) => {
   const [loading, setLoading] = useState(false);
   const [claimAmount, setClaimAmount] = useState("");
   const { address, isConnected } = useAccount();
@@ -39,7 +46,7 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
   }, [walletClient, taskRewardContract, address]);
 
   const handleClaimSubmit = async () => {
-    if (!isConnected || !taskRewardContract || !walletClient || !publicClient || !bountyId) {
+    if (!isConnected || !address) {
       notification.error("请先连接钱包");
       return;
     }
@@ -47,81 +54,116 @@ export const ClaimModal = ({ isOpen, onClose, availableAmount, bountyId }: Claim
     setLoading(true);
 
     try {
-      // 1. 获取任务信息和 onChainTaskId
-      const response = await fetch(`/api/task?taskId=${bountyId}`);
-      const data = await response.json();
-
-      if (!data.task) {
-        throw new Error("找不到任务信息");
-      }
-
-      const onChainTaskId = data.task.onChainTaskId;
-      if (!onChainTaskId) {
-        throw new Error("找不到链上任务ID");
-      }
-
-      const parsedAmount = parseUnits(claimAmount, 6);
-
-      // 2. 调用合约提交申领
-      const { request } = await publicClient.simulateContract({
-        account: address,
-        address: taskRewardContract.address,
-        abi: taskRewardContract.abi,
-        functionName: "submitClaim",
-        args: [BigInt(onChainTaskId), parsedAmount],
-      });
-
-      const claimTx = await walletClient.writeContract(request);
-
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
-
-      // 3. 从事件中获取 claimId
-      let foundClaimId = "";
-      for (const log of receipt.logs) {
-        try {
-          const event = decodeEventLog({
-            abi: taskRewardContract.abi,
-            data: log.data,
-            topics: log.topics,
-          });
-          if (event.eventName === "ClaimSubmitted" && event.args.claimId) {
-            foundClaimId = event.args.claimId.toString();
-            break;
-          }
-        } catch {
-          continue;
+      if (type === "task") {
+        // 任务奖励处理逻辑
+        if (!taskRewardContract || !walletClient || !publicClient || !bountyId) {
+          throw new Error("合约或钱包未准备好");
         }
-      }
 
-      if (!foundClaimId) {
-        throw new Error("未能获取到 ClaimId");
-      }
+        // 1. 获取任务信息和 onChainTaskId
+        const response = await fetch(`/api/task?taskId=${bountyId}`);
+        const data = await response.json();
 
-      // 4. 保存申领记录到数据库
-      const saveResponse = await fetch("/api/claims", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userAddress: address,
-          amount: claimAmount,
-          bountyId,
-          taskId: onChainTaskId,
-          contractRequestId: foundClaimId,
-          status: "pending",
-          transactionHash: receipt.transactionHash,
-        }),
-      });
+        if (!data.task) {
+          throw new Error("找不到任务信息");
+        }
 
-      if (!saveResponse.ok) {
-        const errorData = await saveResponse.json();
-        throw new Error(errorData.message || "保存申请记录失败");
-      }
+        const onChainTaskId = data.task.onChainTaskId;
+        if (!onChainTaskId) {
+          throw new Error("找不到链上任务ID");
+        }
 
-      const saveResult = await saveResponse.json();
-      if (!saveResult.success) {
-        throw new Error(saveResult.message || "保存申请记录失败");
+        const parsedAmount = parseUnits(claimAmount, 6);
+
+        // 2. 调用合约提交申领
+        const { request } = await publicClient.simulateContract({
+          account: address,
+          address: taskRewardContract.address,
+          abi: taskRewardContract.abi,
+          functionName: "submitClaim",
+          args: [BigInt(onChainTaskId), parsedAmount],
+        });
+
+        const claimTx = await walletClient.writeContract(request);
+
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
+
+        // 3. 从事件中获取 claimId
+        let foundClaimId = "";
+        for (const log of receipt.logs) {
+          try {
+            const event = decodeEventLog({
+              abi: taskRewardContract.abi,
+              data: log.data,
+              topics: log.topics,
+            });
+            if (event.eventName === "ClaimSubmitted" && event.args.claimId) {
+              foundClaimId = event.args.claimId.toString();
+              break;
+            }
+          } catch {
+            continue;
+          }
+        }
+
+        if (!foundClaimId) {
+          throw new Error("未能获取到 ClaimId");
+        }
+
+        // 4. 保存申领记录到数据库
+        const saveResponse = await fetch("/api/claims", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userAddress: address,
+            amount: claimAmount,
+            bountyId,
+            taskId: onChainTaskId,
+            contractRequestId: foundClaimId,
+            status: "pending",
+            transactionHash: receipt.transactionHash,
+          }),
+        });
+
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json();
+          throw new Error(errorData.message || "保存申请记录失败");
+        }
+
+        const saveResult = await saveResponse.json();
+        if (!saveResult.success) {
+          throw new Error(saveResult.message || "保存申请记录失败");
+        }
+      } else {
+        // 邀请奖励处理逻辑
+        const saveResponse = await fetch("/api/claims", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userAddress: address,
+            amount: claimAmount,
+            bountyId: "invite",
+            taskId: "invite",
+            contractRequestId: `invite_${Date.now()}`,
+            status: "pending",
+            transactionHash: null,
+            type: "invite",
+          }),
+        });
+
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json();
+          throw new Error(errorData.message || "保存申请记录失败");
+        }
+
+        const saveResult = await saveResponse.json();
+        if (!saveResult.success) {
+          throw new Error(saveResult.message || "保存申请记录失败");
+        }
       }
 
       notification.success("申请提交成功，等待管理员审批");

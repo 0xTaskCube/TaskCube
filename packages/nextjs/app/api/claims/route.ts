@@ -71,7 +71,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 只修改 GET 函数，POST 函数保持不变
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
