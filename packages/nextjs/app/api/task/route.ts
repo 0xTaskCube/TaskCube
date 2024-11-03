@@ -307,8 +307,8 @@ export async function PUT(request: NextRequest) {
         try {
           await session.withTransaction(async () => {
             // 1. 计算基础奖励金额
-            const userReward = reward * 0.9; // 90% 给完成任务的用户
-            const platformFee = reward * 0.04; // 4% 平台手续费
+            const userReward = reward * 0.94; // 94% 给完成任务的用户
+            const platformFee = reward * 0; // 0% 平台手续费
             let unclaimedReward = reward * 0.06; // 剩余6%默认为未认领奖励
 
             // 2. 查找邀请关系并分配邀请奖励

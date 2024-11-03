@@ -54,15 +54,23 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
     setLoading(true);
 
     try {
+      if (!taskRewardContract || !walletClient || !publicClient) {
+        console.error("合约或钱包未准备好");
+        throw new Error("合约或钱包未准备好");
+      }
+
+      const parsedAmount = parseUnits(claimAmount, 6);
+
       if (type === "task") {
         // 任务奖励处理逻辑
-        if (!taskRewardContract || !walletClient || !publicClient || !bountyId) {
-          throw new Error("合约或钱包未准备好");
+        if (!bountyId) {
+          throw new Error("找不到任务ID");
         }
 
-        // 1. 获取任务信息和 onChainTaskId
+        console.log("开始获取任务信息...");
         const response = await fetch(`/api/task?taskId=${bountyId}`);
         const data = await response.json();
+        console.log("获取到的任务信息:", data);
 
         if (!data.task) {
           throw new Error("找不到任务信息");
@@ -73,9 +81,7 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
           throw new Error("找不到链上任务ID");
         }
 
-        const parsedAmount = parseUnits(claimAmount, 6);
-
-        // 2. 调用合约提交申领
+        // 调用合约提交申领
         const { request } = await publicClient.simulateContract({
           account: address,
           address: taskRewardContract.address,
@@ -85,11 +91,10 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         });
 
         const claimTx = await walletClient.writeContract(request);
-
         const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
 
-        // 3. 从事件中获取 claimId
-        let foundClaimId = "";
+        // 从事件中获取 claimId
+        let claimId = "";
         for (const log of receipt.logs) {
           try {
             const event = decodeEventLog({
@@ -97,8 +102,8 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
               data: log.data,
               topics: log.topics,
             });
-            if (event.eventName === "ClaimSubmitted" && event.args.claimId) {
-              foundClaimId = event.args.claimId.toString();
+            if (event.eventName === "ClaimSubmitted") {
+              claimId = event.args.claimId.toString();
               break;
             }
           } catch {
@@ -106,11 +111,11 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
           }
         }
 
-        if (!foundClaimId) {
+        if (!claimId) {
           throw new Error("未能获取到 ClaimId");
         }
 
-        // 4. 保存申领记录到数据库
+        // 保存申领记录到数据库
         const saveResponse = await fetch("/api/claims", {
           method: "POST",
           headers: {
@@ -119,11 +124,12 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
           body: JSON.stringify({
             userAddress: address,
             amount: claimAmount,
-            bountyId,
-            taskId: onChainTaskId,
-            contractRequestId: foundClaimId,
+            bountyId: type === "task" ? bountyId : "invite",
+            taskId: onChainTaskId.toString(), // 使用相同的 onChainTaskId
+            contractRequestId: claimId,
             status: "pending",
             transactionHash: receipt.transactionHash,
+            type: type, // 区分任务类型
           }),
         });
 
@@ -138,6 +144,41 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         }
       } else {
         // 邀请奖励处理逻辑
+        // 使用 taskId 0 表示邀请奖励
+        const { request } = await publicClient.simulateContract({
+          account: address,
+          address: taskRewardContract.address,
+          abi: taskRewardContract.abi,
+          functionName: "submitClaim",
+          args: [BigInt(0), parsedAmount],
+        });
+
+        const claimTx = await walletClient.writeContract(request);
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
+
+        // 从事件中获取 claimId
+        let claimId = "";
+        for (const log of receipt.logs) {
+          try {
+            const event = decodeEventLog({
+              abi: taskRewardContract.abi,
+              data: log.data,
+              topics: log.topics,
+            });
+            if (event.eventName === "ClaimSubmitted") {
+              claimId = event.args.claimId.toString();
+              break;
+            }
+          } catch {
+            continue;
+          }
+        }
+
+        if (!claimId) {
+          throw new Error("未能获取到 ClaimId");
+        }
+
+        // 保存申领记录到数据库
         const saveResponse = await fetch("/api/claims", {
           method: "POST",
           headers: {
@@ -147,10 +188,10 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
             userAddress: address,
             amount: claimAmount,
             bountyId: "invite",
-            taskId: "invite",
-            contractRequestId: `invite_${Date.now()}`,
+            taskId: "0",
+            contractRequestId: claimId,
             status: "pending",
-            transactionHash: null,
+            transactionHash: receipt.transactionHash,
             type: "invite",
           }),
         });

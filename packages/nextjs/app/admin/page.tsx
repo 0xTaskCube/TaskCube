@@ -118,6 +118,16 @@ const AdminPage = () => {
         notification.error("没有选择要批准的请求");
         return;
       }
+      console.log("准备批准的请求IDs:", requestIds);
+
+      // 获取选中请求的 contractRequestId
+      const selectedRequests = withdrawalRequests.filter(request => requestIds.includes(request._id));
+      const contractRequestIds = selectedRequests.map(request => request.contractRequestId).filter(Boolean);
+
+      if (contractRequestIds.length === 0) {
+        notification.error("选中的请求缺少合约请求ID");
+        return;
+      }
 
       setWithdrawalRequests(prevRequests =>
         prevRequests.map(request => (requestIds.includes(request._id) ? { ...request, isLoading: true } : request)),
@@ -130,7 +140,10 @@ const AdminPage = () => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ contractRequestIds: requestIds }),
+          body: JSON.stringify({
+            contractRequestIds,
+            type: "withdrawals", // 添加类型标识
+          }),
         });
 
         if (!response.ok) {
@@ -150,7 +163,7 @@ const AdminPage = () => {
         );
       }
     },
-    [address, fetchWithdrawalRequests],
+    [address, fetchWithdrawalRequests, withdrawalRequests],
   );
 
   const handleApproveClaims = useCallback(
@@ -160,34 +173,40 @@ const AdminPage = () => {
         return;
       }
 
-      // 检查选中的申请是否都有 contractRequestId
-      const selectedClaims = claimRequests.filter(claim => claimIds.includes(claim._id));
-      console.log("选中的申请:", selectedClaims); // 添加日志
-      const invalidClaims = selectedClaims.filter(claim => !claim.contractRequestId);
+      // 过滤出未处理的申请
+      const pendingClaims = claimRequests.filter(
+        claim => claimIds.includes(claim._id) && claim.status.toLowerCase() === "pending",
+      );
 
-      if (invalidClaims.length > 0) {
-        console.error("缺少 contractRequestId 的申请:", invalidClaims);
-        notification.error("部分申请缺少必要的合约信息");
+      if (pendingClaims.length === 0) {
+        notification.error("所选申请已被处理");
         return;
       }
 
-      setClaimRequests(prevClaims =>
-        prevClaims.map(claim => (claimIds.includes(claim._id) ? { ...claim, isLoading: true } : claim)),
+      const pendingClaimIds = pendingClaims.map(claim => claim._id);
+      console.log("待处理的申请:", pendingClaimIds);
+
+      // 更新加载状态
+      setClaimRequests(prevRequests =>
+        prevRequests.map(request =>
+          pendingClaimIds.includes(request._id) ? { ...request, isLoading: true } : request,
+        ),
       );
 
       try {
-        notification.info("正在批准领取申请...");
+        notification.info("正在处理领取申请...");
         const response = await fetch(`/api/admin?userAddress=${address}&type=claims`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ claimIds }),
+          body: JSON.stringify({ claimIds: pendingClaimIds }),
+          signal: AbortSignal.timeout(30000),
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "批准领取申请失败");
+          throw new Error(errorData.error || "处理领取申请失败");
         }
 
         const result = await response.json();
@@ -195,10 +214,12 @@ const AdminPage = () => {
         await fetchClaimRequests();
       } catch (error) {
         console.error("处理批准领取申请时出错:", error);
-        notification.error("处理批准领取申请时出错: " + (error instanceof Error ? error.message : String(error)));
+        notification.error("处理批准领取申请失败: " + (error instanceof Error ? error.message : String(error)));
       } finally {
-        setClaimRequests(prevClaims =>
-          prevClaims.map(claim => (claimIds.includes(claim._id) ? { ...claim, isLoading: false } : claim)),
+        setClaimRequests(prevRequests =>
+          prevRequests.map(request =>
+            pendingClaimIds.includes(request._id) ? { ...request, isLoading: false } : request,
+          ),
         );
       }
     },

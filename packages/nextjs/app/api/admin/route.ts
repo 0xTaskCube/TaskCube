@@ -238,6 +238,7 @@ export async function PUT(request: Request) {
 
       console.log("TaskReward 合约配置:", {
         address: contractConfig.address,
+        abi: contractConfig.abi,
       });
 
       const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
@@ -257,7 +258,10 @@ export async function PUT(request: Request) {
         try {
           console.log(`\n开始处理 Claim:`, {
             id: claim._id,
-            contractClaimId: claim.contractRequestId,
+            contractRequestId: claim.contractRequestId,
+            status: claim.status,
+            userAddress: claim.userAddress,
+            amount: claim.amount,
           });
 
           // 首先调用 approveClaim

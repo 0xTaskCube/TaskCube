@@ -167,17 +167,17 @@ const Dashboard = () => {
 
             // 计算等级
             let newLevel: LevelType = "Initiate";
-            if (balance >= 100) newLevel = "Operative";
-            if (balance >= 500) newLevel = "Enforcer";
-            if (balance >= 1000 && invitesData.invites) {
-              const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 100);
-              if (qualifiedInvites.length >= 1) {
+            if (balance >= 1000) newLevel = "Operative";
+            if (balance >= 3000) newLevel = "Enforcer";
+            if (balance >= 3000 && invitesData.invites) {
+              const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 1000);
+              if (qualifiedInvites.length >= 13) {
                 newLevel = "Vanguard";
               }
             }
             if (balance >= 3000 && invitesData.invites) {
-              const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 200);
-              if (qualifiedInvites.length >= 2) {
+              const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 1000);
+              if (qualifiedInvites.length >= 43) {
                 newLevel = "Prime";
               }
             }
