@@ -34,6 +34,7 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
     event ClaimSubmitted(uint256 indexed claimId, uint256 indexed taskId, address indexed user, uint256 amount);
     event ClaimApproved(uint256 indexed claimId);
     event ClaimExecuted(uint256 indexed claimId, address indexed user, uint256 amount);
+    event TokensWithdrawn(address indexed to, uint256 amount);
     
     constructor(address _usdtToken, address admin) {
         usdtToken = IERC20(_usdtToken);
@@ -44,7 +45,6 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
     function createTask(uint256 totalReward) external whenNotPaused nonReentrant returns (uint256) {
         require(totalReward > 0, "Invalid reward amount");
         
-        // Transfer USDT from user to contract
         require(usdtToken.transferFrom(msg.sender, address(this), totalReward), "Transfer failed");
         
         uint256 taskId = nextTaskId++;
@@ -59,16 +59,20 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         return taskId;
     }
     
+    // 修改 submitClaim 函数
     function submitClaim(uint256 taskId, uint256 amount) external whenNotPaused nonReentrant returns (uint256) {
-        require(tasks[taskId].isActive, "Task not active");
-        require(amount <= tasks[taskId].remainingReward, "Insufficient remaining reward");
+        // taskId 为 0 时表示邀请奖励，跳过任务检查
+        if (taskId != 0) {
+            require(tasks[taskId].isActive, "Task not active");
+            require(amount <= tasks[taskId].remainingReward, "Insufficient remaining reward");
+        }
         
         uint256 claimId = nextClaimId++;
         claims[claimId] = Claim({
             user: msg.sender,
             taskId: taskId,
             amount: amount,
-            approved: false,
+            approved: true, // 直接设置为已批准
             executed: false
         });
         
@@ -76,26 +80,38 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         return claimId;
     }
     
-    function approveClaim(uint256 claimId) external onlyRole(ADMIN_ROLE) {
-        require(!claims[claimId].approved, "Claim already approved");
-        require(!claims[claimId].executed, "Claim already executed");
-        
-        claims[claimId].approved = true;
-        emit ClaimApproved(claimId);
-    }
-    
-    function executeClaim(uint256 claimId) external onlyRole(ADMIN_ROLE) nonReentrant {
+    // 修改 executeClaim 函数
+    function executeClaim(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
-        require(claim.approved, "Claim not approved");
+        require(claim.user == msg.sender, "Only claim creator can execute");
         require(!claim.executed, "Claim already executed");
         
-        Task storage task = tasks[claim.taskId];
-        require(task.isActive, "Task not active");
-        require(claim.amount <= task.remainingReward, "Insufficient remaining reward");
+        if (claim.taskId != 0) { // 如果是任务奖励，需要检查任务状态
+            Task storage task = tasks[claim.taskId];
+            require(task.isActive, "Task not active");
+            require(claim.amount <= task.remainingReward, "Insufficient remaining reward");
+            task.remainingReward -= claim.amount;
+        }
         
-        task.remainingReward -= claim.amount;
         claim.executed = true;
+        require(usdtToken.transfer(claim.user, claim.amount), "Transfer failed");
         
+        emit ClaimExecuted(claimId, claim.user, claim.amount);
+    }
+    
+    // 保留管理员的 executeClaim 函数，重命名为 adminExecuteClaim
+    function adminExecuteClaim(uint256 claimId) external onlyRole(ADMIN_ROLE) nonReentrant {
+        Claim storage claim = claims[claimId];
+        require(!claim.executed, "Claim already executed");
+        
+        if (claim.taskId != 0) {
+            Task storage task = tasks[claim.taskId];
+            require(task.isActive, "Task not active");
+            require(claim.amount <= task.remainingReward, "Insufficient remaining reward");
+            task.remainingReward -= claim.amount;
+        }
+        
+        claim.executed = true;
         require(usdtToken.transfer(claim.user, claim.amount), "Transfer failed");
         
         emit ClaimExecuted(claimId, claim.user, claim.amount);
@@ -108,6 +124,7 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
     function unpause() external onlyRole(ADMIN_ROLE) {
         _unpause();
     }
+    
     function withdrawTokens(address to, uint256 amount) external onlyRole(ADMIN_ROLE) nonReentrant {
         require(to != address(0), "Invalid address");
         require(amount > 0, "Invalid amount");
@@ -117,6 +134,4 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         
         emit TokensWithdrawn(to, amount);
     }
-    
-    event TokensWithdrawn(address indexed to, uint256 amount);
 }

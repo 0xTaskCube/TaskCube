@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loading } from "../../../components/ui/Loading";
+import { FaPaperPlane, FaXTwitter } from "react-icons/fa6";
 import { useAccount } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
@@ -27,6 +28,8 @@ interface TaskDetail {
   requirements?: string[];
   participants: Participant[];
   level: LevelType;
+  twitterAccount?: string;
+  telegramAccount?: string;
 }
 
 interface Participant {
@@ -284,13 +287,45 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                     {task.title}
                     {task.creatorAddress && isOfficialTask(task.creatorAddress) && <OfficialBadge />}
                   </h1>
-                  <p className="text-sm sm:text-base text-gray-400 mt-1">
-                    由{" "}
-                    {task.creatorAddress
-                      ? `${task.creatorAddress.slice(0, 6)}...${task.creatorAddress.slice(-4)}`
-                      : "未知创建者"}{" "}
-                    创建
-                  </p>
+                  <div className="flex items-center mt-1">
+                    <p className="text-sm sm:text-base text-gray-400">
+                      由{" "}
+                      {task.creatorAddress
+                        ? `${task.creatorAddress.slice(0, 6)}...${task.creatorAddress.slice(-4)}`
+                        : "未知创建者"}{" "}
+                      创建
+                    </p>
+                    <div className="flex gap-3 ml-4">
+                      {task.twitterAccount && (
+                        <div
+                          className="tooltip tooltip-custom before:!bg-[#424242] before:!text-white before:cursor-pointer before:!whitespace-normal"
+                          data-tip={task.twitterAccount}
+                          onClick={e => {
+                            if ((e.target as HTMLElement).tagName !== "svg") {
+                              navigator.clipboard.writeText(task.twitterAccount || "");
+                              notification.success("已复制 Twitter 账号");
+                            }
+                          }}
+                        >
+                          <FaXTwitter className="text-xl text-white cursor-pointer hover:text-white" />
+                        </div>
+                      )}
+                      {task.telegramAccount && (
+                        <div
+                          className="tooltip tooltip-custom before:!bg-[#424242] before:!text-white before:cursor-pointer before:!whitespace-normal"
+                          data-tip={task.telegramAccount}
+                          onClick={e => {
+                            if ((e.target as HTMLElement).tagName !== "svg") {
+                              navigator.clipboard.writeText(task.telegramAccount || "");
+                              notification.success("已复制 Telegram 账号");
+                            }
+                          }}
+                        >
+                          <FaPaperPlane className="text-xl text-white cursor-pointer hover:text-white" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="mb-6">

@@ -833,7 +833,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     TaskReward: {
-      address: "0x8eA09912f59Ecf518885Eec106538c75802Dd3fc",
+      address: "0x21D47A5EF1D819a9aB56Cb895dB39F3cF1dB17c8",
       abi: [
         {
           inputs: [
@@ -1099,7 +1099,7 @@ const deployedContracts = {
               type: "uint256",
             },
           ],
-          name: "approveClaim",
+          name: "adminExecuteClaim",
           outputs: [],
           stateMutability: "nonpayable",
           type: "function",

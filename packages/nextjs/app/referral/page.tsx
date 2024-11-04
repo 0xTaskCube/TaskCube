@@ -25,18 +25,31 @@ const ReferralPage = () => {
   }, [currentAddress]);
 
   // 获取邀请奖励
+  // 获取邀请奖励
   useEffect(() => {
     const fetchReferralRewards = async () => {
       if (currentAddress) {
         try {
+          // 获取奖励数据
           const response = await fetch(`/api/task/getBounty?address=${currentAddress}`);
           const data = await response.json();
+          console.log("获取到的奖励数据:", data);
 
           if (data.success) {
-            const directRewards = parseFloat(data.details.directInviterRewards);
-            const indirectRewards = parseFloat(data.details.indirectInviterRewards);
-            const totalReferralRewards = (directRewards + indirectRewards).toFixed(0);
-            setReferralReward(totalReferralRewards);
+            let totalReferralRewards = 0;
+
+            // 遍历所有分配记录，计算邀请奖励
+            data.details.distributions.forEach((dist: any) => {
+              if (dist.directInviterAddress === currentAddress) {
+                totalReferralRewards += Number(dist.directInviterReward) || 0;
+              }
+              if (dist.indirectInviterAddress === currentAddress) {
+                totalReferralRewards += Number(dist.indirectInviterReward) || 0;
+              }
+            });
+
+            // 设置可用的邀请奖励
+            setReferralReward(totalReferralRewards.toFixed(2));
           }
         } catch (error) {
           console.error("获取邀请奖励失败:", error);

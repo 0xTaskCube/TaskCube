@@ -9,6 +9,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import dayjs from "dayjs";
+import { FaPaperPlane, FaXTwitter } from "react-icons/fa6";
 import { decodeEventLog, parseUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { ArrowLeftIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
@@ -51,6 +52,8 @@ const CreateTaskPage = () => {
     taskType: "individual",
     participationType: "Initiate",
     specificAddresses: "",
+    twitterAccount: "",
+    telegramAccount: "",
   });
   const [totalReward, setTotalReward] = useState("0");
   const [duration, setDuration] = useState({ days: 0, hours: 0, minutes: 0 });
@@ -490,6 +493,40 @@ const CreateTaskPage = () => {
                 {taskData.reward && taskData.taskCount && (
                   <p className="text-sm text-gray-400 mt-2">任务的总奖金是：{totalReward} USDT</p>
                 )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    <div className="flex items-center gap-2">
+                      <FaXTwitter className="text-xl" />
+                      <span>Twitter账号</span>
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    name="twitterAccount"
+                    value={taskData.twitterAccount}
+                    onChange={handleChange}
+                    placeholder="@your_twitter"
+                    className="mt-1 block w-full rounded-md border border-[#424242] bg-black px-3 py-2 text-white shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    <div className="flex items-center gap-2">
+                      <FaPaperPlane className="text-xl" />
+                      <span>Telegram账号</span>
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    name="telegramAccount"
+                    value={taskData.telegramAccount}
+                    onChange={handleChange}
+                    placeholder="@your_telegram"
+                    className="mt-1 block w-full rounded-md border border-[#424242] bg-black px-3 py-2 text-white shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+                  />
+                </div>
               </div>
               {!isConnected ? (
                 <RainbowKitCustomConnectButton />

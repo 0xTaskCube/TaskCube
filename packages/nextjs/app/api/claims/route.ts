@@ -4,7 +4,18 @@ import clientPromise from "~~/lib/mongodb";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userAddress, amount, bountyId, contractRequestId, taskId, status } = body;
+    const {
+      userAddress,
+      amount,
+      bountyId,
+      contractRequestId,
+      taskId,
+      status,
+      transactionHash,
+      executeTransactionHash,
+      type,
+      relatedTasks,
+    } = body;
 
     // 验证必需字段
     if (!userAddress || !amount || !bountyId || !contractRequestId || !taskId) {
@@ -32,38 +43,40 @@ export async function POST(request: NextRequest) {
       userAddress,
       amount,
       bountyId,
-      contractRequestId,
       taskId,
-      status: status || "pending",
+      contractRequestId,
+      status: status || "executed", // 默认为 executed
+      transactionHash,
+      executeTransactionHash,
+      type: type || "task",
+      relatedTasks: relatedTasks || [
+        {
+          taskId,
+          amount,
+          type: type || "task",
+        },
+      ],
       createdAt: new Date(),
       updatedAt: new Date(),
-      transactionHash: null, // 用于后续记录执行交易的哈希
-      approvedBy: null, // 用于记录审批人
-      approvedAt: null, // 用于记录审批时间
-      executedAt: null, // 用于记录执行时间
-      remarks: null, // 用于记录备注信息
     });
+
+    if (!result.acknowledged) {
+      throw new Error("保存记录失败");
+    }
 
     return NextResponse.json({
       success: true,
-      message: "领取申请已提交",
+      message: "领取记录已保存",
       data: {
         id: result.insertedId,
-        userAddress,
-        amount,
-        bountyId,
-        contractRequestId,
-        taskId,
-        status: "pending",
-        createdAt: new Date(),
       },
     });
   } catch (error) {
-    console.error("处理领取申请失败:", error);
+    console.error("保存领取记录失败:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "处理领取申请失败",
+        message: "保存领取记录失败",
         error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
@@ -85,12 +98,10 @@ export async function GET(request: NextRequest) {
     if (userAddress) query.userAddress = userAddress;
     if (status) query.status = status;
 
-    // 添加日志以便调试
     console.log("Claims 查询条件:", query);
 
     const claims = await db.collection("claims").find(query).sort({ createdAt: -1 }).toArray();
 
-    // 添加日志以便调试
     console.log(`找到 ${claims.length} 条记录`);
 
     return NextResponse.json({
@@ -98,11 +109,11 @@ export async function GET(request: NextRequest) {
       data: claims,
     });
   } catch (error) {
-    console.error("获取领取申请列表失败:", error);
+    console.error("获取领取记录失败:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "获取领取申请列表失败",
+        message: "获取领取记录失败",
         error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },

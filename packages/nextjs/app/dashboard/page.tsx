@@ -143,10 +143,12 @@ const Dashboard = () => {
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [_invites, setInvites] = useState<any[]>([]);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
-
+  const [inviterRewards, setInviterRewards] = useState("0");
   const [bountyId, setBountyId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
+    // 2. 修改 fetchData 函数
     const fetchData = async () => {
       if (address) {
         setIsLoading(true);
@@ -157,109 +159,60 @@ const Dashboard = () => {
           if (balanceData.success) {
             const balance = parseFloat(balanceData.availableBalance);
             setAvailableBalance(balance.toFixed(2));
-
-            // 2. 获取邀请数据
-            const invitesResponse = await fetch(`/api/invites?inviter=${address}`);
-            const invitesData = await invitesResponse.json();
-            if (invitesData.invites) {
-              setInvites(invitesData.invites);
-            }
-
-            // 计算等级
-            let newLevel: LevelType = "Initiate";
-            if (balance >= 1000) newLevel = "Operative";
-            if (balance >= 3000) newLevel = "Enforcer";
-            if (balance >= 3000 && invitesData.invites) {
-              const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 1000);
-              if (qualifiedInvites.length >= 13) {
-                newLevel = "Vanguard";
-              }
-            }
-            if (balance >= 3000 && invitesData.invites) {
-              const qualifiedInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 1000);
-              if (qualifiedInvites.length >= 43) {
-                newLevel = "Prime";
-              }
-            }
-            setUserLevel({ level: newLevel });
           }
 
-          // 3. 获取任务记录和奖励数据
-          const tasksResponse = await fetch(`/api/task?address=${address}`);
-          const tasksData = await tasksResponse.json();
+          // 2. 获取邀请数据
+          const invitesResponse = await fetch(`/api/invites?inviter=${address}`);
+          const invitesData = await invitesResponse.json();
+          if (invitesData.invites) {
+            setInvites(invitesData.invites);
+          }
 
-          // 在 useEffect 中找到获取 bounty 数据的部分，替换这部分代码：
-
-          // 4. 获取 bounty 数据
+          // 3. 获取奖励数据
           const bountyResponse = await fetch(`/api/task/getBounty?address=${address}`);
           const bountyData = await bountyResponse.json();
+          console.log("获取到的奖励数据:", bountyData);
 
           if (bountyData.success) {
-            // 获取总奖励
-            const totalReward = parseFloat(bountyData.bounty);
+            // 设置任务奖励
+            setBounty(bountyData.bounty);
 
-            // 获取已提现记录
-            const claimsResponse = await fetch(`/api/claims?userAddress=${address}&status=approved`);
-            const claimsData = await claimsResponse.json();
+            // 计算邀请奖励总额 = 直接邀请奖励 + 间接邀请奖励
+            const totalInviterRewards = (
+              parseFloat(bountyData.details.directInviterRewards) +
+              parseFloat(bountyData.details.indirectInviterRewards)
+            ).toFixed(2);
+            setInviterRewards(totalInviterRewards);
 
-            // 计算已提现总额
-            let totalClaimed = 0;
-            if (claimsData.success && claimsData.data) {
-              totalClaimed = claimsData.data.reduce((sum: number, claim: any) => sum + parseFloat(claim.amount), 0);
-            }
+            // 4. 获取任务记录并处理
+            const tasksResponse = await fetch(`/api/task?address=${address}`);
+            const tasksData = await tasksResponse.json();
+            console.log("获取到的任务数据:", tasksData);
 
-            // 计算实际可用余额
-            const availableBounty = Math.max(0, totalReward - totalClaimed);
-            setBounty(availableBounty.toFixed(2));
-
-            // 如果有奖励，找到对应的任务
-            // 修改这里：不管余额多少，只要有奖励就找到对应的任务
-            if (parseFloat(bountyData.bounty) > 0 && tasksData.acceptedTasks) {
-              // 找到最新的已完成任务
-              const latestTask = tasksData.acceptedTasks
+            if (tasksData.acceptedTasks) {
+              const completedTasks = tasksData.acceptedTasks
                 .filter((task: any) =>
                   task.participants.some((p: any) => p.address === address && p.status === "approved"),
                 )
-                .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+                .map((task: any) => {
+                  const distribution = bountyData.details?.distributions?.find(
+                    (d: any) => d.taskId.toString() === task._id.toString(),
+                  );
 
-              if (latestTask) {
-                setBountyId(latestTask._id);
-                console.log("获取到的任务信息:", {
-                  taskId: latestTask._id,
-                  onChainTaskId: latestTask.onChainTaskId,
+                  return {
+                    id: task._id,
+                    title: task.title,
+                    userReward: distribution?.userReward?.toFixed(2) || "0",
+                    inviterReward: distribution?.directInviterReward?.toFixed(2) || "0",
+                    completedDate:
+                      task.participants.find((p: any) => p.address === address)?.approvedDate || task.endDate,
+                    creatorAddress: task.creatorAddress,
+                  };
                 });
-              }
+
+              console.log("处理后的任务记录:", completedTasks);
+              setCompletedTasks(completedTasks);
             }
-          }
-
-          // 5. 处理已完成任务列表
-          if (tasksData.acceptedTasks) {
-            const completedTasks = tasksData.acceptedTasks
-              .filter((task: any) =>
-                task.participants.some((p: any) => p.address === address && p.status === "approved"),
-              )
-              .map((task: any) => {
-                const participant = task.participants.find(
-                  (p: any) => p.address === address && p.status === "approved",
-                );
-
-                // 查找对应的奖励分配记录
-                const distribution = bountyData.details?.distributions?.find(
-                  (d: any) => d.taskId.toString() === task._id.toString(),
-                );
-
-                const reward = parseFloat(task.reward);
-                return {
-                  id: task._id,
-                  title: task.title,
-                  userReward: distribution?.userReward?.toFixed(2) || (reward * 0.9).toFixed(2),
-                  inviterReward: distribution?.directInviterReward?.toFixed(2) || (reward * 0.03).toFixed(2),
-                  completedDate: participant?.approvedDate || task.endDate,
-                  creatorAddress: task.creatorAddress,
-                };
-              });
-
-            setCompletedTasks(completedTasks);
           }
         } catch (error) {
           console.error("获取数据失败:", error);
@@ -274,31 +227,27 @@ const Dashboard = () => {
 
   // 3. 修改 handleClaimBounty 函数
   const handleClaimBounty = useCallback(() => {
-    console.log("Claim 按钮点击时的状态:", {
+    console.log("当前状态:", {
       bounty,
       bountyId,
-      hasBounty: parseFloat(bounty) > 0,
+      inviterRewards,
+      availableAmount: bountyId ? bounty : inviterRewards,
     });
 
-    // 修改这里：如果是邀请奖励，不需要检查 bountyId
-    if (bountyId) {
-      // 任务完成奖励
-      console.log("打开任务奖励领取模态框", { bounty, bountyId });
-      setIsClaimModalOpen(true);
-    } else {
-      // 邀请奖励
-      console.log("打开邀请奖励领取模态框", { bounty });
+    if (parseFloat(bounty) > 0) {
+      // 直接设置一个默认的任务ID
+      setBountyId("task"); // 使用固定值 "task"
       setIsClaimModalOpen(true);
     }
-  }, [bounty, bountyId]);
+  }, [bounty, inviterRewards]);
 
   const levelTooltip = `
 等级说明：
-1. Initiate: 新手级别
-2. Operative: 充值满 100 USDT
-3. Enforcer: 充值满 500 USDT
-4. Vanguard: 充值满 1000 USDT,并且直接邀请 1 个用户且该用户充值满 100 USDT
-5. Prime: 充值满 3000 USDT,并且直接邀请 2 个用户且这些用户充值满 200 USDT
+  - Initiate: 新手级别
+  - Operative: 充值1000 USDT保证金
+  - Enforcer: 充值满 500 USDT
+  - Vanguard: 充值满 1000 USDT,并且直接邀请 1 个用户且该用户充值满 100 USDT
+  -Prime: 充值满 3000 USDT,并且直接邀请 2 个用户且这些用户充值满 200 USDT
   `.trim();
 
   const cardData = [
@@ -410,9 +359,9 @@ const Dashboard = () => {
         <ClaimModal
           isOpen={isClaimModalOpen}
           onClose={() => setIsClaimModalOpen(false)}
-          availableAmount={bounty}
-          bountyId={bountyId || ""} // 如果是邀请奖励，bountyId 为空字符串
-          type={bountyId ? "task" : "invite"} // 添加类型区分
+          availableAmount={bountyId ? bounty : inviterRewards} // 根据类型传递不同的金额
+          bountyId={bountyId || ""}
+          type={bountyId ? "task" : "invite"}
         />
       </div>
     </div>

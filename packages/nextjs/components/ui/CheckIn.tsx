@@ -33,9 +33,28 @@ const CheckIn: React.FC = () => {
     try {
       const response = await fetch(`/api/CheckIn?address=${address}`);
       const data = await response.json();
-      setCheckInState(data);
+
+      // 如果是新用户（没有签到记录），显示 0 天
+      if (!data.lastCheckIn) {
+        setCheckInState({
+          consecutiveDays: 0,
+          lastCheckIn: null,
+          canCheckIn: true,
+          level: data.level || "Initiate",
+        });
+      } else {
+        // 如果有签到记录，使用后端返回的数据
+        setCheckInState(data);
+      }
     } catch (error) {
       console.error("获取签到状态失败:", error);
+      // 发生错误时也显示 0 天
+      setCheckInState({
+        consecutiveDays: 0,
+        lastCheckIn: null,
+        canCheckIn: true,
+        level: "Initiate",
+      });
     }
   };
 
@@ -92,8 +111,14 @@ const CheckIn: React.FC = () => {
    - Enforcer: 3天
    - Vanguard: 5天
    - Prime: 7天
-3. 签到可获得积分奖励
-4. 保持连续签到以获得更多奖励！
+   
+签到奖励：
+2. 连续签到100天可获得高额奖励,按完成时间排名:
+   - 1-10名: 1BTC
+   - 11-200名: 2ETH
+   - 201-2000名: 1ETH
+   - 2001-10000名: 1000USDT
+
 `.trim();
   const handleMouseEnter = useCallback(() => setShowTooltip(true), []);
   const handleMouseLeave = useCallback(() => setShowTooltip(false), []);
@@ -147,7 +172,7 @@ const CheckIn: React.FC = () => {
           )}
         </div>
       </div>
-      <div className="w-full bg-gray-700 h-4 rounded-full mt-4 relative">
+      <div className="w-full border border-[#424242] bg-custom-hover h-4 rounded-full mt-4 relative">
         <div
           style={{ width: `${progressPercentage}%` }}
           className="bg-primary h-full rounded-full transition-all duration-300 ease-in-out"

@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
         participants: [],
         status: "published",
         createdAt: new Date(),
+        twitterAccount: body.twitterAccount || "",
+        telegramAccount: body.telegramAccount || "",
       };
 
       const result = await db.collection("tasks").insertOne(newTask);

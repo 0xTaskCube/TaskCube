@@ -12,7 +12,7 @@ import { notification } from "~~/utils/scaffold-eth";
 interface ClaimModalProps {
   isOpen: boolean;
   onClose: () => void;
-  availableAmount: string;
+  availableAmount: string; // 从父组件传入的余额
   bountyId: string;
   type?: "task" | "invite";
 }
@@ -24,6 +24,11 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
   bountyId,
   type = "task",
 }) => {
+  // 在这里添加格式化函数
+  const formatAmount = (amount: string | number) => {
+    const num = Number(amount);
+    return isNaN(num) ? "0.00" : num.toFixed(2);
+  };
   const [loading, setLoading] = useState(false);
   const [claimAmount, setClaimAmount] = useState("");
   const { address, isConnected } = useAccount();
@@ -50,101 +55,141 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
       notification.error("请先连接钱包");
       return;
     }
-
+    const formattedAvailableAmount = formatAmount(availableAmount);
+    if (Number(claimAmount) > Number(formattedAvailableAmount)) {
+      notification.error(`可领取金额不能超过 ${formattedAvailableAmount} USDT`);
+      return;
+    }
     setLoading(true);
 
     try {
       if (!taskRewardContract || !walletClient || !publicClient) {
-        console.error("合约或钱包未准备好");
         throw new Error("合约或钱包未准备好");
       }
 
       const parsedAmount = parseUnits(claimAmount, 6);
-
+      console.log("当前类型:", type);
+      console.log("可用金额:", availableAmount);
+      console.log("领取金额:", claimAmount);
+      console.log("提交申请参数:", {
+        type,
+        bountyId,
+        availableAmount,
+        claimAmount,
+      });
       if (type === "task") {
-        // 任务奖励处理逻辑
-        if (!bountyId) {
-          throw new Error("找不到任务ID");
-        }
-
-        console.log("开始获取任务信息...");
-        const response = await fetch(`/api/task?taskId=${bountyId}`);
-        const data = await response.json();
-        console.log("获取到的任务信息:", data);
-
-        if (!data.task) {
-          throw new Error("找不到任务信息");
-        }
-
-        const onChainTaskId = data.task.onChainTaskId;
-        if (!onChainTaskId) {
-          throw new Error("找不到链上任务ID");
-        }
-
-        // 调用合约提交申领
-        const { request } = await publicClient.simulateContract({
-          account: address,
-          address: taskRewardContract.address,
-          abi: taskRewardContract.abi,
-          functionName: "submitClaim",
-          args: [BigInt(onChainTaskId), parsedAmount],
-        });
-
-        const claimTx = await walletClient.writeContract(request);
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
-
-        // 从事件中获取 claimId
-        let claimId = "";
-        for (const log of receipt.logs) {
-          try {
-            const event = decodeEventLog({
-              abi: taskRewardContract.abi,
-              data: log.data,
-              topics: log.topics,
-            });
-            if (event.eventName === "ClaimSubmitted") {
-              claimId = event.args.claimId.toString();
-              break;
-            }
-          } catch {
-            continue;
+        // 移除任务信息获取的逻辑，直接提交申请
+        try {
+          if (!taskRewardContract || !walletClient || !publicClient) {
+            throw new Error("合约或钱包未准备好");
           }
-        }
 
-        if (!claimId) {
-          throw new Error("未能获取到 ClaimId");
-        }
+          const parsedAmount = parseUnits(claimAmount, 6);
+          console.log("提交申请参数:", {
+            type,
+            bountyId: "task", // 使用固定值
+            claimAmount,
+            parsedAmount,
+          });
 
-        // 保存申领记录到数据库
-        const saveResponse = await fetch("/api/claims", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userAddress: address,
-            amount: claimAmount,
-            bountyId: type === "task" ? bountyId : "invite",
-            taskId: onChainTaskId.toString(), // 使用相同的 onChainTaskId
-            contractRequestId: claimId,
-            status: "pending",
-            transactionHash: receipt.transactionHash,
-            type: type, // 区分任务类型
-          }),
-        });
+          // 直接调用合约的 submitClaim 方法
+          const { request } = await publicClient.simulateContract({
+            account: address,
+            address: taskRewardContract.address,
+            abi: taskRewardContract.abi,
+            functionName: "submitClaim",
+            args: [BigInt(0), parsedAmount], // 使用 0 作为 taskId
+          });
 
-        if (!saveResponse.ok) {
-          const errorData = await saveResponse.json();
-          throw new Error(errorData.message || "保存申请记录失败");
-        }
+          const claimTx = await walletClient.writeContract(request);
+          console.log("Claim 交易已发送:", claimTx);
 
-        const saveResult = await saveResponse.json();
-        if (!saveResult.success) {
-          throw new Error(saveResult.message || "保存申请记录失败");
+          const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
+          console.log("Claim 交易已确认:", receipt);
+
+          // 从事件中获取 claimId
+          let claimId = "";
+          for (const log of receipt.logs) {
+            try {
+              const event = decodeEventLog({
+                abi: taskRewardContract.abi,
+                data: log.data,
+                topics: log.topics,
+              });
+              if (event.eventName === "ClaimSubmitted") {
+                claimId = event.args.claimId.toString();
+                break;
+              }
+            } catch {
+              continue;
+            }
+          }
+
+          if (!claimId) {
+            throw new Error("未能获取到 ClaimId");
+          }
+
+          // 直接执行 Claim
+          console.log("开始执行 Claim...");
+          const executeTx = await walletClient.writeContract({
+            account: address,
+            address: taskRewardContract.address,
+            abi: taskRewardContract.abi,
+            functionName: "executeClaim",
+            args: [BigInt(claimId)],
+          });
+
+          console.log("Execute 交易已发送:", executeTx);
+          const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: executeTx });
+          console.log("Execute 交易已确认:", executeReceipt);
+
+          // 保存记录到数据库
+          const saveResponse = await fetch("/api/claims", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userAddress: address,
+              amount: claimAmount,
+              bountyId: "task",
+              taskId: "0",
+              contractRequestId: claimId,
+              status: "executed",
+              transactionHash: receipt.transactionHash,
+              executeTransactionHash: executeReceipt.transactionHash,
+              type: "task",
+              relatedTasks: [
+                {
+                  taskId: "0",
+                  amount: claimAmount,
+                  type: "task",
+                },
+              ],
+            }),
+          });
+
+          if (!saveResponse.ok) {
+            const errorData = await saveResponse.json();
+            throw new Error(errorData.message || "保存记录失败");
+          }
+
+          notification.success("奖励领取成功！");
+          setClaimAmount("");
+          onClose();
+        } catch (error) {
+          console.error("领取失败:", error);
+          notification.error("领取失败: " + (error instanceof Error ? error.message : String(error)));
+          throw error; // 继续抛出错误，让外层的 catch 处理
         }
       } else {
         // 邀请奖励处理逻辑
-        // 使用 taskId 0 表示邀请奖励
+        console.log("开始处理邀请奖励...");
+        if (Number(availableAmount) < Number(claimAmount)) {
+          throw new Error(`可用余额不足，当前邀请奖励可用余额: ${availableAmount} USDT`);
+        }
+
+        // 提交 Claim
         const { request } = await publicClient.simulateContract({
           account: address,
           address: taskRewardContract.address,
@@ -154,9 +199,12 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         });
 
         const claimTx = await walletClient.writeContract(request);
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
+        console.log("邀请奖励 Claim 交易已发送:", claimTx);
 
-        // 从事件中获取 claimId
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
+        console.log("邀请奖励 Claim 交易已确认:", receipt);
+
+        // 获取 claimId
         let claimId = "";
         for (const log of receipt.logs) {
           try {
@@ -175,10 +223,24 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         }
 
         if (!claimId) {
-          throw new Error("未能获取到 ClaimId");
+          throw new Error("未能获取到邀请奖励的 ClaimId");
         }
 
-        // 保存申领记录到数据库
+        // 执行 Claim
+        console.log("开始执行邀请奖励 Claim...");
+        const executeTx = await walletClient.writeContract({
+          account: address,
+          address: taskRewardContract.address,
+          abi: taskRewardContract.abi,
+          functionName: "executeClaim",
+          args: [BigInt(claimId)],
+        });
+
+        console.log("邀请奖励 Execute 交易已发送:", executeTx);
+        const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: executeTx });
+        console.log("邀请奖励 Execute 交易已确认:", executeReceipt);
+
+        // 保存记录
         const saveResponse = await fetch("/api/claims", {
           method: "POST",
           headers: {
@@ -190,29 +252,32 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
             bountyId: "invite",
             taskId: "0",
             contractRequestId: claimId,
-            status: "pending",
+            status: "executed",
             transactionHash: receipt.transactionHash,
+            executeTransactionHash: executeReceipt.transactionHash,
             type: "invite",
+            relatedTasks: [
+              {
+                taskId: "0",
+                amount: claimAmount,
+                type: "invite",
+              },
+            ],
           }),
         });
 
         if (!saveResponse.ok) {
           const errorData = await saveResponse.json();
-          throw new Error(errorData.message || "保存申请记录失败");
+          throw new Error(errorData.message || "保存邀请奖励记录失败");
         }
 
-        const saveResult = await saveResponse.json();
-        if (!saveResult.success) {
-          throw new Error(saveResult.message || "保存申请记录失败");
-        }
+        notification.success("邀请奖励领取成功！");
+        setClaimAmount("");
+        onClose();
       }
-
-      notification.success("申请提交成功，等待管理员审批");
-      setClaimAmount("");
-      onClose();
     } catch (error) {
-      console.error("提交申请失败:", error);
-      notification.error("提交失败: " + (error instanceof Error ? error.message : String(error)));
+      console.error("领取失败:", error);
+      notification.error("领取失败: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setLoading(false);
     }
@@ -231,7 +296,7 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         <div className="space-y-4">
           <div className="border border-[#424242] bg-black rounded-lg p-4">
             <span className="text-sm text-gray-400">可领取金额:</span>
-            <span className="text-white ml-2 text-lg font-semibold">{availableAmount} USDT</span>
+            <span className="text-white ml-2 text-lg font-semibold">{formatAmount(availableAmount)} USDT</span>
           </div>
 
           <div className="space-y-4">
@@ -253,7 +318,7 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
               />
               <button
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-primary text-sm hover:text-primary-focus"
-                onClick={() => setClaimAmount(availableAmount)}
+                onClick={() => setClaimAmount(formatAmount(availableAmount))}
               >
                 MAX
               </button>
@@ -265,13 +330,19 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
 
             <button
               className={`w-full py-3 rounded-lg font-semibold ${
-                loading || !claimAmount || Number(claimAmount) <= 0 || Number(claimAmount) > Number(availableAmount)
+                loading ||
+                !claimAmount ||
+                Number(claimAmount) <= 0 ||
+                Number(claimAmount) > Number(formatAmount(availableAmount))
                   ? "bg-black text-white cursor-not-allowed"
                   : "bg-primary hover:bg-opacity-80 text-white"
               }`}
               onClick={handleClaimSubmit}
               disabled={
-                loading || !claimAmount || Number(claimAmount) <= 0 || Number(claimAmount) > Number(availableAmount)
+                loading ||
+                !claimAmount ||
+                Number(claimAmount) <= 0 ||
+                Number(claimAmount) > Number(formatAmount(availableAmount))
               }
             >
               {loading ? (
