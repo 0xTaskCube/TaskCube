@@ -374,13 +374,32 @@ export async function PUT(request: NextRequest) {
               },
               { session },
             );
+
+            // 6. 保存合约调用请求
+            if (task.onChainTaskId) {
+              await db.collection("contractCalls").insertOne(
+                {
+                  taskId: task._id,
+                  type: "markTaskCompleted",
+                  onChainTaskId: task.onChainTaskId,
+                  status: "pending",
+                  createdAt: new Date(),
+                },
+                { session },
+              );
+            }
           });
         } finally {
           await session.endSession();
         }
       }
 
-      return NextResponse.json({ success: true, message: "任务已批准并完成", reward });
+      return NextResponse.json({
+        success: true,
+        message: "任务已批准并完成",
+        reward,
+        needsContractCall: task.onChainTaskId ? true : false,
+      });
     } else {
       return NextResponse.json({ success: true, message: "任务已拒绝" });
     }

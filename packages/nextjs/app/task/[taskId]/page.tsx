@@ -6,10 +6,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loading } from "../../../components/ui/Loading";
 import { FaPaperPlane, FaXTwitter } from "react-icons/fa6";
+import { decodeEventLog } from "viem";
 import { useAccount } from "wagmi";
+import { usePublicClient, useWalletClient } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { OfficialBadge, isOfficialTask } from "~~/components/ui/OfficialTask";
+import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 type LevelType = "Initiate" | "Operative" | "Enforcer" | "Vanguard" | "Prime";
@@ -30,6 +33,9 @@ interface TaskDetail {
   level: LevelType;
   twitterAccount?: string;
   telegramAccount?: string;
+  taskCount: string;
+  onChainTaskId?: string;
+  status?: string;
 }
 
 interface Participant {
@@ -39,6 +45,13 @@ interface Participant {
 
 const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const { address } = useAccount();
+  const { data: taskRewardContract } = useScaffoldContract({
+    contractName: "TaskReward",
+  });
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+
+  // 现有的状态声明
   const [isTaskExpired, setIsTaskExpired] = useState(false);
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -49,6 +62,9 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const [userLevel, setUserLevel] = useState<LevelType>("Initiate");
   const [completedCount, setCompletedCount] = useState(0);
   const [taskCount, setTaskCount] = useState(0);
+  const [canWithdraw, setCanWithdraw] = useState(false);
+  const [remainingReward, setRemainingReward] = useState("0");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const participationOptions = [
     { value: "Initiate", label: "Initiate", minReward: 0 },
     { value: "Operative", label: "Operative", minReward: 100 },
@@ -72,6 +88,27 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         return "bg-gray-700"; // 保留默认颜色为深灰色
     }
   };
+
+  // 使用现有的 getBounty API 获取剩余奖励
+  const fetchRemainingReward = async () => {
+    try {
+      // 直接使用任务的原始数据计算
+      if (task) {
+        const totalReward = Number(task.reward) * Number(task.taskCount);
+        const completedReward = completedCount * Number(task.reward);
+        const remaining = totalReward - completedReward;
+        setRemainingReward(remaining.toFixed(2));
+      }
+    } catch (error) {
+      console.error("获取剩余奖励失败:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (task?.onChainTaskId && completedCount !== undefined) {
+      fetchRemainingReward();
+    }
+  }, [task, completedCount]);
 
   const fetchTask = async () => {
     try {
@@ -161,6 +198,33 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   }, [task, address]);
 
   useEffect(() => {
+    const checkWithdrawable = () => {
+      if (task && address) {
+        const isCreator = task.creatorAddress === address;
+        const isEnded = isTaskExpired || completedCount >= taskCount;
+        const hasRemaining = completedCount < parseInt(task.taskCount);
+
+        console.log("检查赎回条件:", {
+          isCreator,
+          isEnded,
+          hasRemaining,
+          completedCount,
+          taskCount,
+          reward: task.reward,
+        });
+
+        if (isCreator && isEnded && hasRemaining) {
+          setCanWithdraw(true);
+        } else {
+          setCanWithdraw(false);
+        }
+      }
+    };
+
+    checkWithdrawable();
+  }, [task, address, isTaskExpired, completedCount, taskCount]);
+
+  useEffect(() => {
     const calculateTimeRemaining = () => {
       if (task) {
         const now = new Date();
@@ -224,6 +288,71 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     } catch (error) {
       console.error("接受任务失败:", error);
       notification.error("接受任务失败");
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!task?.onChainTaskId) {
+      notification.error("链上任务ID不存在");
+      return;
+    }
+
+    if (!taskRewardContract || !walletClient || !publicClient) {
+      notification.error("合约或钱包未连接");
+      return;
+    }
+
+    setIsWithdrawing(true);
+    try {
+      // 先获取已领取的奖励金额
+      const claimedAmount = await publicClient.readContract({
+        address: taskRewardContract.address as `0x${string}`,
+        abi: taskRewardContract.abi,
+        functionName: "claimedRewards", // 修改这里，使用正确的映射名称
+        args: [BigInt(task.onChainTaskId)],
+      });
+
+      // 打印调试信息
+      // 添加在这里，在模拟交易之前
+      console.log("提现前数据:", {
+        taskId: task.onChainTaskId,
+        reward: task.reward,
+        taskCount: task.taskCount,
+        totalReward: Number(task.reward) * Number(task.taskCount),
+        remainingReward,
+        claimedAmount: claimedAmount.toString(),
+      });
+
+      // 模拟交易以检查是否会成功
+      const { request } = await publicClient.simulateContract({
+        account: address,
+        address: taskRewardContract.address as `0x${string}`,
+        abi: taskRewardContract.abi,
+        functionName: "withdrawTaskRemaining",
+        args: [BigInt(task.onChainTaskId)],
+      });
+
+      // 执行实际交易
+      const hash = await walletClient.writeContract(request);
+      notification.info("赎回交易已提交");
+
+      // 等待交易确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      if (receipt.status === "success") {
+        notification.success("赎回成功");
+        // 刷新任务数据
+        await fetchTask();
+        // 重新获取剩余奖励
+        await fetchRemainingReward();
+      } else {
+        throw new Error("交易失败");
+      }
+    } catch (error) {
+      console.error("赎回失败:", error);
+      notification.error("赎回失败: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -443,6 +572,22 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   ? "接受任务"
                   : `您的等级（${userLevel}）不足，需要${task.participationType}等级或以上才能接受此任务`}
               </button>
+              {canWithdraw && (
+                <button
+                  className="w-full bg-primary hover:bg-opacity-80 text-white py-3 rounded-lg font-semibold mt-4"
+                  onClick={handleWithdraw}
+                  disabled={isWithdrawing}
+                >
+                  {isWithdrawing ? (
+                    <div className="flex items-center justify-center">
+                      <Loading size="sm" className="mr-2" />
+                      赎回中...
+                    </div>
+                  ) : (
+                    `赎回剩余奖励 (${remainingReward} USDT)`
+                  )}
+                </button>
+              )}
             </div>
           </div>
 

@@ -148,30 +148,52 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 2. 修改 fetchData 函数
     const fetchData = async () => {
       if (address) {
         setIsLoading(true);
         try {
-          // 1. 获取余额
-          const balanceResponse = await fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`);
-          const balanceData = await balanceResponse.json();
+          // 1. 获取余额和邀请数据
+          const [balanceResponse, invitesResponse] = await Promise.all([
+            fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`),
+            fetch(`/api/invites?inviter=${address}`),
+          ]);
+
+          const [balanceData, invitesData] = await Promise.all([balanceResponse.json(), invitesResponse.json()]);
+
+          // 处理余额数据
           if (balanceData.success) {
             const balance = parseFloat(balanceData.availableBalance);
             setAvailableBalance(balance.toFixed(2));
+
+            // 处理等级逻辑
+            const qualifiedInvites200 =
+              invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 200).length || 0;
+
+            const qualifiedInvites100 =
+              invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 100).length || 0;
+
+            // 设置用户等级
+            if (balance >= 3000 && qualifiedInvites200 >= 2) {
+              setUserLevel({ level: "Prime" });
+            } else if (balance >= 3000 && qualifiedInvites100 >= 1) {
+              setUserLevel({ level: "Vanguard" });
+            } else if (balance >= 3000) {
+              setUserLevel({ level: "Enforcer" });
+            } else if (balance >= 1000) {
+              setUserLevel({ level: "Operative" });
+            } else {
+              setUserLevel({ level: "Initiate" });
+            }
           }
 
-          // 2. 获取邀请数据
-          const invitesResponse = await fetch(`/api/invites?inviter=${address}`);
-          const invitesData = await invitesResponse.json();
+          // 保存邀请数据
           if (invitesData.invites) {
             setInvites(invitesData.invites);
           }
 
-          // 3. 获取奖励数据
+          // 2. 获取奖励数据
           const bountyResponse = await fetch(`/api/task/getBounty?address=${address}`);
           const bountyData = await bountyResponse.json();
-          console.log("获取到的奖励数据:", bountyData);
 
           if (bountyData.success) {
             // 设置任务奖励
@@ -184,7 +206,7 @@ const Dashboard = () => {
             ).toFixed(2);
             setInviterRewards(totalInviterRewards);
 
-            // 4. 获取任务记录并处理
+            // 3. 获取任务记录并处理
             const tasksResponse = await fetch(`/api/task?address=${address}`);
             const tasksData = await tasksResponse.json();
             console.log("获取到的任务数据:", tasksData);
@@ -216,6 +238,7 @@ const Dashboard = () => {
           }
         } catch (error) {
           console.error("获取数据失败:", error);
+          notification.error("获取数据失败");
         } finally {
           setIsLoading(false);
         }

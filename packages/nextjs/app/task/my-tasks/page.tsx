@@ -3,9 +3,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
+import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 interface Participant {
@@ -21,6 +22,8 @@ interface Task {
   status: "published" | "accepted" | "completed" | "rejected" | "pending_approval";
   creatorAddress: string;
   participants: Participant[];
+  onChainTaskId?: string;
+  isActive: boolean;
 }
 
 const MyTasksPage = () => {
@@ -91,32 +94,101 @@ const MyTasksPage = () => {
     }
   }, [address, fetchTasks]);
 
+  // 添加必要的 hooks
+  const { data: taskRewardContract } = useScaffoldContract({
+    contractName: "TaskReward",
+  });
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+
+  // 修改 handleApprove 函数
+
   const handleApprove = async (taskId: string, participantAddress: string | undefined) => {
     if (!participantAddress) {
       notification.error("无效的参与者地址");
       return;
     }
+
+    if (!address) {
+      notification.error("请先连接钱包");
+      return;
+    }
+
     try {
+      // 1. 调用后端 API 更新数据库
       const response = await fetch(`/api/task`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ taskId, participantAddress, action: "approve" }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          notification.success("任务已批准");
-          fetchTasks();
-        } else {
-          throw new Error(data.message || "批准任务失败");
-        }
-      } else {
+      if (!response.ok) {
         throw new Error("批准任务失败");
       }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || "批准任务失败");
+      }
+
+      // 2. 如果需要调用合约，则进行合约调用
+      if (data.needsContractCall && taskRewardContract && walletClient && publicClient) {
+        try {
+          // 获取任务信息
+          const task = publishedTasks.find(t => t.id === taskId);
+          if (!task?.onChainTaskId) {
+            throw new Error("链上任务ID不存在");
+          }
+
+          // 检查当前用户是否是任务创建者
+          const onChainTask = (await publicClient.readContract({
+            address: taskRewardContract.address as `0x${string}`,
+            abi: taskRewardContract.abi,
+            functionName: "tasks",
+            args: [BigInt(task.onChainTaskId)],
+          })) as readonly [string, bigint, bigint, bigint, boolean];
+
+          // 确保当前用户是任务创建者
+          const creator = onChainTask[0]; // 获取创建者地址（第一个元素）
+          if (creator.toLowerCase() !== address.toLowerCase()) {
+            throw new Error("只有任务创建者可以批准完成");
+          }
+
+          // 模拟合约调用
+          const { request } = await publicClient.simulateContract({
+            address: taskRewardContract.address as `0x${string}`,
+            abi: taskRewardContract.abi,
+            functionName: "markTaskCompleted",
+            args: [BigInt(task.onChainTaskId)],
+            account: address, // 明确指定调用者地址
+          });
+
+          // 执行合约调用
+          const hash = await walletClient.writeContract({
+            ...request,
+            account: address, // 明确指定调用者地址
+          });
+
+          notification.info("合约调用已提交");
+
+          // 等待交易确认
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+          if (receipt.status === "reverted") {
+            throw new Error("合约调用被回滚");
+          }
+        } catch (error) {
+          console.error("合约调用失败:", error);
+          notification.error(`合约调用失败: ${error instanceof Error ? error.message : String(error)}`);
+          return; // 如果合约调用失败，不继续后续操作
+        }
+      }
+
+      notification.success("任务已批准");
+      fetchTasks(); // 刷新任务列表
     } catch (error) {
       console.error("批准任务失败:", error);
-      notification.error("批准任务失败");
+      notification.error("批准任务失败: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 

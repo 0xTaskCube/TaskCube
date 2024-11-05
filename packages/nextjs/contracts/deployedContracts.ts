@@ -833,7 +833,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     TaskReward: {
-      address: "0x21D47A5EF1D819a9aB56Cb895dB39F3cF1dB17c8",
+      address: "0x8a2d422A7840dc2BF289b71801bbed50493D8c51",
       abi: [
         {
           inputs: [
@@ -1037,6 +1037,62 @@ const deployedContracts = {
           anonymous: false,
           inputs: [
             {
+              indexed: false,
+              internalType: "uint256",
+              name: "taskId",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "totalReward",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "claimedAmount",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "remainingReward",
+              type: "uint256",
+            },
+          ],
+          name: "TaskDebug",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "taskId",
+              type: "uint256",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "creator",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "TaskWithdrawn",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
               indexed: true,
               internalType: "address",
               name: "to",
@@ -1112,6 +1168,25 @@ const deployedContracts = {
               type: "uint256",
             },
           ],
+          name: "claimedRewards",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
           name: "claims",
           outputs: [
             {
@@ -1147,7 +1222,31 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          name: "completedTaskCount",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
               name: "totalReward",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "_totalParticipants",
               type: "uint256",
             },
           ],
@@ -1173,6 +1272,25 @@ const deployedContracts = {
           name: "executeClaim",
           outputs: [],
           stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "taskId",
+              type: "uint256",
+            },
+          ],
+          name: "getClaimedRewards",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
         {
@@ -1234,6 +1352,19 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "taskId",
+              type: "uint256",
+            },
+          ],
+          name: "markTaskCompleted",
+          outputs: [],
+          stateMutability: "nonpayable",
           type: "function",
         },
         {
@@ -1387,6 +1518,11 @@ const deployedContracts = {
               type: "uint256",
             },
             {
+              internalType: "uint256",
+              name: "totalParticipants",
+              type: "uint256",
+            },
+            {
               internalType: "bool",
               name: "isActive",
               type: "bool",
@@ -1413,6 +1549,19 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "taskId",
+              type: "uint256",
+            },
+          ],
+          name: "withdrawTaskRemaining",
+          outputs: [],
+          stateMutability: "nonpayable",
           type: "function",
         },
         {

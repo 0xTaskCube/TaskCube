@@ -115,7 +115,8 @@ const CreateTaskPage = () => {
     setIsLoading(true);
     try {
       // 计算总奖励金额（任务数量 * 每个任务的奖励）
-      const totalRewardAmount = parseUnits((Number(taskData.reward) * Number(taskData.taskCount)).toString(), 6); // USDT 6位小数
+      const totalRewardAmount = parseUnits((Number(taskData.reward) * Number(taskData.taskCount)).toString(), 6);
+      const totalParticipants = BigInt(taskData.taskCount); // 转换为 BigInt
 
       // 1. 批准 USDT 转账
       const { request: approveRequest } = await publicClient.simulateContract({
@@ -137,7 +138,7 @@ const CreateTaskPage = () => {
         address: taskRewardContract.address,
         abi: taskRewardContract.abi,
         functionName: "createTask",
-        args: [totalRewardAmount],
+        args: [totalRewardAmount, totalParticipants],
       });
 
       const createTaskTx = await walletClient.writeContract(createTaskRequest);
@@ -184,7 +185,7 @@ const CreateTaskPage = () => {
         },
         body: JSON.stringify({
           ...taskData,
-          onChainTaskId: onChainTaskId?.toString(), // 添加链上任务ID
+          onChainTaskId: onChainTaskId?.toString(), 
           startDate: now.toISOString(),
           endDate: endTime.toISOString(),
           creatorAddress: address,

@@ -14,6 +14,7 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         address creator;
         uint256 totalReward;
         uint256 remainingReward;
+        uint256 totalParticipants;
         bool isActive;
     }
     
@@ -27,6 +28,9 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
     
     mapping(uint256 => Task) public tasks;
     mapping(uint256 => Claim) public claims;
+    mapping(uint256 => uint256) public claimedRewards;
+    mapping(uint256 => uint256) public completedTaskCount;
+
     uint256 public nextTaskId;
     uint256 public nextClaimId;
     
@@ -36,14 +40,23 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
     event ClaimExecuted(uint256 indexed claimId, address indexed user, uint256 amount);
     event TokensWithdrawn(address indexed to, uint256 amount);
     
+    // 添加新的调试事件
+    event TaskDebug(
+        uint256 taskId, 
+        uint256 totalReward,
+        uint256 claimedAmount,
+        uint256 remainingReward
+    );
+
     constructor(address _usdtToken, address admin) {
         usdtToken = IERC20(_usdtToken);
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
     }
     
-    function createTask(uint256 totalReward) external whenNotPaused nonReentrant returns (uint256) {
+        function createTask(uint256 totalReward, uint256 _totalParticipants) external whenNotPaused nonReentrant returns (uint256) {
         require(totalReward > 0, "Invalid reward amount");
+        require(_totalParticipants > 0, "Invalid participants count");  
         
         require(usdtToken.transferFrom(msg.sender, address(this), totalReward), "Transfer failed");
         
@@ -51,7 +64,8 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         tasks[taskId] = Task({
             creator: msg.sender,
             totalReward: totalReward,
-            remainingReward: totalReward,
+            remainingReward: totalReward, 
+            totalParticipants: _totalParticipants, 
             isActive: true
         });
         
@@ -59,47 +73,61 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         return taskId;
     }
     
-    // 修改 submitClaim 函数
-    function submitClaim(uint256 taskId, uint256 amount) external whenNotPaused nonReentrant returns (uint256) {
-        // taskId 为 0 时表示邀请奖励，跳过任务检查
+    function submitClaim(uint256 taskId, uint256 amount) external whenNotPaused nonReentrant returns (uint256) {       
         if (taskId != 0) {
-            require(tasks[taskId].isActive, "Task not active");
-            require(amount <= tasks[taskId].remainingReward, "Insufficient remaining reward");
+            Task storage task = tasks[taskId];
+            require(task.isActive && amount <= task.remainingReward, "Invalid claim conditions");
         }
         
+       
         uint256 claimId = nextClaimId++;
         claims[claimId] = Claim({
             user: msg.sender,
             taskId: taskId,
             amount: amount,
-            approved: true, // 直接设置为已批准
+            approved: true,  
             executed: false
         });
-        
         emit ClaimSubmitted(claimId, taskId, msg.sender, amount);
         return claimId;
     }
-    
-    // 修改 executeClaim 函数
+
+    function markTaskCompleted(uint256 taskId) external {
+        Task storage task = tasks[taskId];
+        require(task.isActive, "Task not active");
+        require(msg.sender == task.creator, "Only task creator can mark completion");
+        require(completedTaskCount[taskId] < task.totalParticipants, "All tasks completed");
+        
+        completedTaskCount[taskId] += 1; 
+    }
+
     function executeClaim(uint256 claimId) external nonReentrant {
         Claim storage claim = claims[claimId];
         require(claim.user == msg.sender, "Only claim creator can execute");
         require(!claim.executed, "Claim already executed");
         
-        if (claim.taskId != 0) { // 如果是任务奖励，需要检查任务状态
+        if (claim.taskId != 0) {
             Task storage task = tasks[claim.taskId];
             require(task.isActive, "Task not active");
             require(claim.amount <= task.remainingReward, "Insufficient remaining reward");
-            task.remainingReward -= claim.amount;
+        
+            claim.executed = true;
+           
+            claimedRewards[claim.taskId] += claim.amount;  
+            task.remainingReward = task.remainingReward - claim.amount;
         }
         
-        claim.executed = true;
+        
         require(usdtToken.transfer(claim.user, claim.amount), "Transfer failed");
         
         emit ClaimExecuted(claimId, claim.user, claim.amount);
     }
+
+    // 添加这个函数来查询已领取的奖励
+    function getClaimedRewards(uint256 taskId) public view returns (uint256) {
+        return claimedRewards[taskId];
+    }
     
-    // 保留管理员的 executeClaim 函数，重命名为 adminExecuteClaim
     function adminExecuteClaim(uint256 claimId) external onlyRole(ADMIN_ROLE) nonReentrant {
         Claim storage claim = claims[claimId];
         require(!claim.executed, "Claim already executed");
@@ -108,10 +136,14 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
             Task storage task = tasks[claim.taskId];
             require(task.isActive, "Task not active");
             require(claim.amount <= task.remainingReward, "Insufficient remaining reward");
-            task.remainingReward -= claim.amount;
+           
+            claim.executed = true;
+           
+            claimedRewards[claim.taskId] += claim.amount;  
+            task.remainingReward = task.remainingReward - claim.amount;
         }
         
-        claim.executed = true;
+        
         require(usdtToken.transfer(claim.user, claim.amount), "Transfer failed");
         
         emit ClaimExecuted(claimId, claim.user, claim.amount);
@@ -133,5 +165,28 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         require(usdtToken.transfer(to, amount), "Transfer failed");
         
         emit TokensWithdrawn(to, amount);
+    }
+    
+   
+    event TaskWithdrawn(uint256 indexed taskId, address indexed creator, uint256 amount);
+
+    function withdrawTaskRemaining(uint256 taskId) external nonReentrant {
+        Task storage task = tasks[taskId];
+        require(msg.sender == task.creator, "Only creator can withdraw");
+        require(task.isActive, "Task not active");
+        
+        // 使用 completedTaskCount 而不是计算值
+        uint256 completed = completedTaskCount[taskId];
+        
+        // 计算实际可提取金额：未完成任务的奖励
+        uint256 withdrawAmount = (task.totalParticipants - completed) * (task.totalReward / task.totalParticipants);
+        require(withdrawAmount > 0, "No remaining reward");
+        
+        task.remainingReward = 0;
+        task.isActive = false;
+        
+        require(usdtToken.transfer(msg.sender, withdrawAmount), "Transfer failed");
+        
+        emit TaskWithdrawn(taskId, msg.sender, withdrawAmount);
     }
 }

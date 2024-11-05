@@ -25,7 +25,6 @@ const ReferralPage = () => {
   }, [currentAddress]);
 
   // 获取邀请奖励
-  // 获取邀请奖励
   useEffect(() => {
     const fetchReferralRewards = async () => {
       if (currentAddress) {
