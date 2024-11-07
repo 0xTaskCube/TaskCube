@@ -92,23 +92,60 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   // 使用现有的 getBounty API 获取剩余奖励
   const fetchRemainingReward = async () => {
     try {
-      // 直接使用任务的原始数据计算
-      if (task) {
-        const totalReward = Number(task.reward) * Number(task.taskCount);
-        const completedReward = completedCount * Number(task.reward);
-        const remaining = totalReward - completedReward;
-        setRemainingReward(remaining.toFixed(2));
+      if (!task?.onChainTaskId || !taskRewardContract || !publicClient) {
+        return;
+      }
+
+      // 1. 获取任务信息
+      const onChainTask = (await publicClient.readContract({
+        address: taskRewardContract.address as `0x${string}`,
+        abi: taskRewardContract.abi,
+        functionName: "tasks",
+        args: [BigInt(task.onChainTaskId)],
+      })) as readonly [string, bigint, bigint, bigint, boolean];
+
+      // 2. 获取已领取的奖励金额
+      const claimedAmount = await publicClient.readContract({
+        address: taskRewardContract.address as `0x${string}`,
+        abi: taskRewardContract.abi,
+        functionName: "claimedRewards",
+        args: [BigInt(task.onChainTaskId)],
+      });
+
+      // 3. 计算剩余可赎回的奖励
+      const totalReward = Number(task.reward) * Number(task.taskCount);
+      const claimed = Number(claimedAmount) / 1e6;
+      const approvedAmount = Number(task.reward) * completedCount; // 已批准任务的总金额
+      const remaining = totalReward - approvedAmount; // 使用已批准的数量来计算
+
+      console.log("剩余奖励计算:", {
+        totalReward,
+        claimedAmount: claimed,
+        completedCount,
+        approvedAmount,
+        remaining,
+        taskStatus: onChainTask[4],
+      });
+
+      // 只有当任务在链上的状态为非激活（已赎回）时才显示 0
+      if (!onChainTask[4]) {
+        // 这里的 false 表示已赎回，而不是任务结束
+        setRemainingReward("0");
+      } else {
+        setRemainingReward(remaining > 0 ? remaining.toFixed(2) : "0");
       }
     } catch (error) {
       console.error("获取剩余奖励失败:", error);
+      setRemainingReward("0");
     }
   };
 
+  // 修改 useEffect，在相关状态变化时重新获取剩余奖励
   useEffect(() => {
-    if (task?.onChainTaskId && completedCount !== undefined) {
+    if (task?.onChainTaskId) {
       fetchRemainingReward();
     }
-  }, [task, completedCount]);
+  }, [task, completedCount, taskRewardContract, publicClient]);
 
   const fetchTask = async () => {
     try {
@@ -308,7 +345,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
       const claimedAmount = await publicClient.readContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
-        functionName: "claimedRewards", 
+        functionName: "claimedRewards",
         args: [BigInt(task.onChainTaskId)],
       });
 
@@ -574,9 +611,13 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
               </button>
               {canWithdraw && (
                 <button
-                  className="w-full bg-primary hover:bg-opacity-80 text-white py-3 rounded-lg font-semibold mt-4"
+                  className={`w-full ${
+                    isWithdrawing || remainingReward === "0"
+                      ? "bg-custom-hover cursor-not-allowed"
+                      : "bg-primary hover:bg-opacity-80"
+                  } text-white py-3 rounded-lg font-semibold mt-4`}
                   onClick={handleWithdraw}
-                  disabled={isWithdrawing}
+                  disabled={isWithdrawing || remainingReward === "0"}
                 >
                   {isWithdrawing ? (
                     <div className="flex items-center justify-center">
