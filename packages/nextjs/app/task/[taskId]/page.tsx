@@ -308,7 +308,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
       const claimedAmount = await publicClient.readContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
-        functionName: "claimedRewards", // 修改这里，使用正确的映射名称
+        functionName: "claimedRewards", 
         args: [BigInt(task.onChainTaskId)],
       });
 

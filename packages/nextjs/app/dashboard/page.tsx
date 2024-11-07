@@ -166,16 +166,16 @@ const Dashboard = () => {
             setAvailableBalance(balance.toFixed(2));
 
             // 处理等级逻辑
-            const qualifiedInvites200 =
-              invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 200).length || 0;
+            const qualifiedInvitesPrime =
+              invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 1000).length || 0;
 
-            const qualifiedInvites100 =
-              invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 100).length || 0;
+            const qualifiedInvitesVanguard =
+              invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 1000).length || 0;
 
             // 设置用户等级
-            if (balance >= 3000 && qualifiedInvites200 >= 2) {
+            if (balance >= 3000 && qualifiedInvitesPrime >= 120) {
               setUserLevel({ level: "Prime" });
-            } else if (balance >= 3000 && qualifiedInvites100 >= 1) {
+            } else if (balance >= 3000 && qualifiedInvitesVanguard >= 11) {
               setUserLevel({ level: "Vanguard" });
             } else if (balance >= 3000) {
               setUserLevel({ level: "Enforcer" });

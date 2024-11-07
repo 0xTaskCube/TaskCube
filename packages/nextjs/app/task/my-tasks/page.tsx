@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
+import { Loading } from "~~/components/ui/Loading";
 import { useScaffoldContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -33,7 +34,7 @@ const MyTasksPage = () => {
   const [taskType, setTaskType] = useState<"published" | "accepted">("published");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [approvingTask, setApprovingTask] = useState<string>("");
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -102,8 +103,10 @@ const MyTasksPage = () => {
   const publicClient = usePublicClient();
 
   // 修改 handleApprove 函数
-
   const handleApprove = async (taskId: string, participantAddress: string | undefined) => {
+    const operationId = `${taskId}-${participantAddress}`;
+    if (approvingTask === operationId) return;
+
     if (!participantAddress) {
       notification.error("无效的参与者地址");
       return;
@@ -113,9 +116,58 @@ const MyTasksPage = () => {
       notification.error("请先连接钱包");
       return;
     }
-
+    setApprovingTask(operationId);
     try {
-      // 1. 调用后端 API 更新数据库
+      // 1. 先检查合约调用是否可行
+      if (!taskRewardContract || !walletClient || !publicClient) {
+        throw new Error("合约或钱包客户端未初始化");
+      }
+
+      // 获取任务信息
+      const task = publishedTasks.find(t => t.id === taskId);
+      if (!task?.onChainTaskId) {
+        throw new Error("链上任务ID不存在");
+      }
+
+      // 检查当前用户是否是任务创建者
+      const onChainTask = (await publicClient.readContract({
+        address: taskRewardContract.address as `0x${string}`,
+        abi: taskRewardContract.abi,
+        functionName: "tasks",
+        args: [BigInt(task.onChainTaskId)],
+      })) as readonly [string, bigint, bigint, bigint, boolean];
+
+      // 确保当前用户是任务创建者
+      const creator = onChainTask[0];
+      if (creator.toLowerCase() !== address.toLowerCase()) {
+        throw new Error("只有任务创建者可以批准完成");
+      }
+
+      // 2. 执行合约调用
+      const { request } = await publicClient.simulateContract({
+        address: taskRewardContract.address as `0x${string}`,
+        abi: taskRewardContract.abi,
+        functionName: "markTaskCompleted",
+        args: [BigInt(task.onChainTaskId)],
+        account: address,
+      });
+
+      // 执行合约调用
+      const hash = await walletClient.writeContract({
+        ...request,
+        account: address,
+      });
+
+      notification.info("合约调用已提交，等待确认...");
+
+      // 等待交易确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      if (receipt.status === "reverted") {
+        throw new Error("合约调用被回滚");
+      }
+
+      // 3. 只有在合约调用成功后，才更新后端数据库
       const response = await fetch(`/api/task`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -123,65 +175,12 @@ const MyTasksPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error("批准任务失败");
+        throw new Error("更新任务状态失败");
       }
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.message || "批准任务失败");
-      }
-
-      // 2. 如果需要调用合约，则进行合约调用
-      if (data.needsContractCall && taskRewardContract && walletClient && publicClient) {
-        try {
-          // 获取任务信息
-          const task = publishedTasks.find(t => t.id === taskId);
-          if (!task?.onChainTaskId) {
-            throw new Error("链上任务ID不存在");
-          }
-
-          // 检查当前用户是否是任务创建者
-          const onChainTask = (await publicClient.readContract({
-            address: taskRewardContract.address as `0x${string}`,
-            abi: taskRewardContract.abi,
-            functionName: "tasks",
-            args: [BigInt(task.onChainTaskId)],
-          })) as readonly [string, bigint, bigint, bigint, boolean];
-
-          // 确保当前用户是任务创建者
-          const creator = onChainTask[0]; // 获取创建者地址（第一个元素）
-          if (creator.toLowerCase() !== address.toLowerCase()) {
-            throw new Error("只有任务创建者可以批准完成");
-          }
-
-          // 模拟合约调用
-          const { request } = await publicClient.simulateContract({
-            address: taskRewardContract.address as `0x${string}`,
-            abi: taskRewardContract.abi,
-            functionName: "markTaskCompleted",
-            args: [BigInt(task.onChainTaskId)],
-            account: address, // 明确指定调用者地址
-          });
-
-          // 执行合约调用
-          const hash = await walletClient.writeContract({
-            ...request,
-            account: address, // 明确指定调用者地址
-          });
-
-          notification.info("合约调用已提交");
-
-          // 等待交易确认
-          const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-          if (receipt.status === "reverted") {
-            throw new Error("合约调用被回滚");
-          }
-        } catch (error) {
-          console.error("合约调用失败:", error);
-          notification.error(`合约调用失败: ${error instanceof Error ? error.message : String(error)}`);
-          return; // 如果合约调用失败，不继续后续操作
-        }
+        throw new Error(data.message || "更新任务状态失败");
       }
 
       notification.success("任务已批准");
@@ -286,8 +285,15 @@ const MyTasksPage = () => {
       <div className="border border-[#424242] bg-base-400 p-4 rounded-lg mb-6">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <span className="text-white text-lg font-semibold mr-4">{task.title}</span>
-            <span className="text-gray-400 text-sm">截止日期: {new Date(task.endDate).toLocaleDateString()}</span>
+            <div className="flex items-center">
+              <span className="text-white text-lg font-semibold mr-4">{task.title}</span>
+              <div className="flex items-center">
+                <span className="text-gray-400 text-sm">截止日期: {new Date(task.endDate).toLocaleDateString()}</span>
+                <Link href={`/task/${task.id}`} className="ml-2">
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-400 hover:text-primary cursor-pointer" />
+                </Link>
+              </div>
+            </div>
           </div>
           <div className="flex items-center">
             <Image
@@ -318,12 +324,18 @@ const MyTasksPage = () => {
                           <div className="ml-2">
                             <button
                               onClick={() => handleApprove(task.id, participant.address)}
+                              disabled={approvingTask === `${task.id}-${participant.address}`}
                               className="bg-primary hover:bg-opacity-80 text-white px-2 py-1 rounded-lg text-xs mr-1"
                             >
-                              批准
+                              {approvingTask === `${task.id}-${participant.address}` ? (
+                                <span className="flex items-center">批准中...</span>
+                              ) : (
+                                "批准"
+                              )}
                             </button>
                             <button
                               onClick={() => handleReject(task.id, participant.address)}
+                              disabled={approvingTask === `${task.id}-${participant.address}`}
                               className="bg-red-500 hover:bg-opacity-80 text-white px-2 py-1 rounded-lg text-xs"
                             >
                               拒绝
@@ -411,16 +423,18 @@ const MyTasksPage = () => {
           </div>
         </div>
 
-        <div className="mb-4 text-sm text-gray-400">{taskType === "published" ? "已发布的任务" : "已接受的任务"}</div>
+        {/* <div className="mb-4 text-sm text-gray-400">{taskType === "published" ? "已发布的任务" : "已接受的任务"}</div> */}
 
         {isLoading ? (
-          <p className="text-gray-400">加载中...</p>
+          <div className="flex justify-center items-center min-h-[200px]">
+            <Loading size="lg" color="primary" />
+          </div>
         ) : error ? (
           <p className="text-red-500">{error}</p>
         ) : currentTasks.length > 0 ? (
           currentTasks.map(task => <TaskItem key={task.id} task={task} />)
         ) : (
-          <p className="text-gray-400">暂无任务</p>
+          <div className="flex justify-center items-center min-h-[200px]">暂无任务</div>
         )}
       </div>
     </div>
