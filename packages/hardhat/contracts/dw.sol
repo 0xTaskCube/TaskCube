@@ -66,7 +66,7 @@ contract DepositWithdraw is AccessControl, ReentrancyGuard, Pausable {
     usdtToken.safeTransferFrom(msg.sender, address(this), _amount);
     unchecked {
         balances[msg.sender] += _amount;
-        totalDeposits[msg.sender] += _amount; // 添加这行
+        totalDeposits[msg.sender] += _amount; 
     }
     emit Deposited(msg.sender, _amount);
 }

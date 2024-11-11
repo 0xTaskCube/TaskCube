@@ -92,12 +92,19 @@ export async function POST(request: NextRequest) {
 
       if (userData?.lastCheckIn) {
         const lastCheckIn = new Date(userData.lastCheckIn);
+        const diffTime = getUTC8Date(now).getTime() - getUTC8Date(lastCheckIn).getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
         if (isConsecutiveDay(lastCheckIn, now)) {
           // 如果是连续签到，增加天数
           consecutiveDays = userData.consecutiveDays + 1;
-          // 最大连续签到天数为100天
-          if (consecutiveDays > 100) consecutiveDays = 100;
+        } else if (diffDays > 1) {
+          // 修改这里：如果间隔超过1天，重置为1天
+          consecutiveDays = 1;
         }
+
+        // 最大连续签到天数为100天
+        if (consecutiveDays > 100) consecutiveDays = 100;
       }
 
       const result = await userCollection.updateOne(
@@ -106,7 +113,7 @@ export async function POST(request: NextRequest) {
           $set: {
             lastCheckIn: now.toISOString(),
             consecutiveDays,
-            level: userData?.level || "Initiate", // 保持原有等级
+            level: userData?.level || "Initiate",
           },
         },
         { upsert: true },

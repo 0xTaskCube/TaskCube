@@ -23,7 +23,7 @@ interface ClaimRequest {
   amount: string;
   bountyId: string;
   taskId: string;
-  contractRequestId: string; // 确保使用正确的字段名
+  contractRequestId: string;
   status: string;
   date: string;
   isLoading: boolean;
