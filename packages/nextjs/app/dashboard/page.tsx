@@ -298,7 +298,7 @@ const Dashboard = () => {
               tooltip={card.tooltip}
             />
           ))}
-          <CheckIn />
+          <CheckIn userLevel={userLevel} />
         </div>
 
         <div className="bg-base-400 rounded-lg shadow-lg overflow-hidden">

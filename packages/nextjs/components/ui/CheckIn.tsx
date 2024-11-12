@@ -4,7 +4,12 @@ import { FaFire, FaInfoCircle } from "react-icons/fa";
 import { useAccount } from "wagmi";
 
 type LevelType = "Initiate" | "Operative" | "Enforcer" | "Vanguard" | "Prime";
-
+interface CheckInProps {
+  userLevel?: {
+    // 使用可选属性
+    level: LevelType;
+  };
+}
 interface CheckInState {
   consecutiveDays: number;
   lastCheckIn: string | null;
@@ -12,12 +17,13 @@ interface CheckInState {
   level: LevelType;
 }
 
-const CheckIn: React.FC = () => {
+const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) => {
+  // 添加默认值
   const [checkInState, setCheckInState] = useState<CheckInState>({
     consecutiveDays: 0,
     lastCheckIn: null,
     canCheckIn: false,
-    level: "Initiate",
+    level: userLevel?.level || "Initiate",
   });
   const [showTooltip, setShowTooltip] = useState(false);
   const { address } = useAccount();
@@ -65,7 +71,10 @@ const CheckIn: React.FC = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({
+          address,
+          level: userLevel.level,
+        }),
       });
       const data = await response.json();
       if (data.success) {
@@ -90,7 +99,10 @@ const CheckIn: React.FC = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({
+          address,
+          level: userLevel.level, // 传入当前等级
+        }),
       });
       const data = await response.json();
       if (data.success) {
@@ -101,7 +113,42 @@ const CheckIn: React.FC = () => {
     }
   };
   const progressPercentage = (checkInState.consecutiveDays / 100) * 100;
-  const canMakeUp = ["Operative", "Enforcer", "Vanguard", "Prime"].includes(checkInState.level);
+
+  const canMakeUp = useCallback(() => {
+    if (userLevel.level === "Initiate") return false;
+    if (!checkInState.lastCheckIn) return false;
+
+    const lastCheckIn = new Date(checkInState.lastCheckIn);
+    const now = new Date();
+
+    // 转换为 UTC+8 时间
+    const utc8Last = new Date(lastCheckIn.getTime() + 8 * 60 * 60 * 1000);
+    const utc8Now = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+
+    const diffDays = Math.floor((utc8Now.getTime() - utc8Last.getTime()) / (1000 * 60 * 60 * 24));
+
+    // 获取允许的补签天数
+    let allowedDays = 0;
+    switch (userLevel.level) {
+      case "Prime":
+        allowedDays = 7;
+        break;
+      case "Vanguard":
+        allowedDays = 5;
+        break;
+      case "Enforcer":
+        allowedDays = 3;
+        break;
+      case "Operative":
+        allowedDays = 1;
+        break;
+      default:
+        allowedDays = 0;
+    }
+
+    // 间隔大于1天且在补签期限内
+    return diffDays > 1 && diffDays <= allowedDays;
+  }, [checkInState.lastCheckIn, userLevel.level]);
 
   const checkInRules = `
 签到规则：
@@ -161,7 +208,7 @@ const CheckIn: React.FC = () => {
               GM
             </button>
           ) : (
-            canMakeUp && (
+            canMakeUp() && (
               <button
                 onClick={handleMakeUpCheckIn}
                 className="px-3 py-2 text-sm rounded-full bg-secondary hover:bg-secondary-dark text-white font-bold transition-all duration-300 hover:scale-105"

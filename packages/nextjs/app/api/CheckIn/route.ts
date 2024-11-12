@@ -56,8 +56,46 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const lastCheckIn = userData.lastCheckIn ? new Date(userData.lastCheckIn) : null;
 
-    // 检查是否可以签到（基于 UTC+8 时间）
-    const canCheckIn = !lastCheckIn || !isSameDay(lastCheckIn, now);
+    // 计算间隔天数
+    const diffDays = lastCheckIn ? Math.floor((now.getTime() - lastCheckIn.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+    // 获取允许的补签天数
+    let allowedMakeupDays = 0;
+    switch (userData.level) {
+      case "Prime":
+        allowedMakeupDays = 7;
+        break;
+      case "Vanguard":
+        allowedMakeupDays = 5;
+        break;
+      case "Enforcer":
+        allowedMakeupDays = 3;
+        break;
+      case "Operative":
+        allowedMakeupDays = 1;
+        break;
+      default:
+        allowedMakeupDays = 0;
+    }
+
+    // 修改判断逻辑
+    const canCheckIn = (() => {
+      if (!userData.lastCheckIn) return true; // 新用户可以签到
+
+      const lastCheckIn = new Date(userData.lastCheckIn);
+      const diffDays = Math.floor((now.getTime() - lastCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+
+      // 如果是同一天，不能签到
+      if (isSameDay(lastCheckIn, now)) return false;
+
+      // 如果是前一天，可以正常签到
+      if (diffDays === 1) return true;
+
+      // 如果间隔多天，且在补签期限内，不显示 GM 按钮
+      if (diffDays <= allowedMakeupDays) return false;
+
+      // 超过补签期限，显示 GM 按钮
+      return true;
+    })();
 
     return NextResponse.json({
       consecutiveDays: userData.consecutiveDays,
@@ -72,7 +110,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { address } = await request.json();
+  const { address, level } = await request.json(); // 添加 level 参数
 
   if (!address) {
     return NextResponse.json({ error: "Address is required" }, { status: 400 });
@@ -82,13 +120,12 @@ export async function POST(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
     const userCollection = db.collection("users");
-
     const now = new Date();
     const userData = (await userCollection.findOne({ address })) as UserCheckInData | null;
 
-    // 检查是否已经签到（基于 UTC+8 时间）
+    // 检查是否可以签到
     if (!userData || !userData.lastCheckIn || !isSameDay(new Date(userData.lastCheckIn), now)) {
-      let consecutiveDays = 1; // 默认从1开始
+      let consecutiveDays = 1;
 
       if (userData?.lastCheckIn) {
         const lastCheckIn = new Date(userData.lastCheckIn);
@@ -96,14 +133,11 @@ export async function POST(request: NextRequest) {
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
         if (isConsecutiveDay(lastCheckIn, now)) {
-          // 如果是连续签到，增加天数
           consecutiveDays = userData.consecutiveDays + 1;
         } else if (diffDays > 1) {
-          // 修改这里：如果间隔超过1天，重置为1天
           consecutiveDays = 1;
         }
 
-        // 最大连续签到天数为100天
         if (consecutiveDays > 100) consecutiveDays = 100;
       }
 
@@ -113,7 +147,7 @@ export async function POST(request: NextRequest) {
           $set: {
             lastCheckIn: now.toISOString(),
             consecutiveDays,
-            level: userData?.level || "Initiate",
+            level, // 使用传入的 level
           },
         },
         { upsert: true },
@@ -123,7 +157,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           consecutiveDays,
-          level: userData?.level || "Initiate",
+          level,
         });
       } else {
         throw new Error("Failed to update user data");

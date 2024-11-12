@@ -8,16 +8,15 @@ interface UserCheckInData {
   consecutiveDays: number;
   lastCheckIn: string | null;
   level: LevelType;
-  lastMakeup?: string; // 添加 lastMakeup 字段
+  lastMakeup?: string;
 }
 
-// 添加 UTC+8 时间转换函数
 function getUTC8Date(date: Date): Date {
   return new Date(date.getTime() + 8 * 60 * 60 * 1000);
 }
 
 export async function POST(request: NextRequest) {
-  const { address } = await request.json();
+  const { address, level } = await request.json();
 
   if (!address) {
     return NextResponse.json({ error: "Address is required" }, { status: 400 });
@@ -35,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    const currentMonth = getUTC8Date(now).toISOString().slice(0, 7); // 'YYYY-MM'
+    const currentMonth = getUTC8Date(now).toISOString().slice(0, 7);
 
     // 检查本月是否已经补签过
     if (userData.lastMakeup === currentMonth) {
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // 获取允许的补签天数
     let makeupDaysAllowed = 0;
-    switch (userData.level) {
+    switch (level) {
       case "Prime":
         makeupDaysAllowed = 7;
         break;
@@ -74,13 +73,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Makeup period expired" }, { status: 400 });
     }
 
-    // 检查是否超过100天
     let newConsecutiveDays = userData.consecutiveDays + daysSinceLastCheckIn;
     if (newConsecutiveDays > 100) {
       newConsecutiveDays = 100;
     }
 
-    // 更新数据
     const result = await userCollection.updateOne(
       { address },
       {
@@ -88,6 +85,7 @@ export async function POST(request: NextRequest) {
           lastCheckIn: now.toISOString(),
           consecutiveDays: newConsecutiveDays,
           lastMakeup: currentMonth,
+          level,
         },
       },
     );
@@ -96,7 +94,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         consecutiveDays: newConsecutiveDays,
-        level: userData.level,
+        level,
       });
     } else {
       throw new Error("Failed to update user data");
