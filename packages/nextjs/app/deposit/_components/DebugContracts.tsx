@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo } from "react";
 import { useLocalStorage } from "usehooks-ts";
+import { useAccount } from "wagmi";
 import { BarsArrowUpIcon } from "@heroicons/react/20/solid";
 import { ContractUI } from "~~/app/deposit/_components/contract";
 import { ContractName, GenericContract } from "~~/utils/scaffold-eth/contract";
 import { useAllContracts } from "~~/utils/scaffold-eth/contractsData";
 
 const selectedContractStorageKey = "scaffoldEth2.selectedContract";
+const ADMIN_ADDRESS = "0xB1CD9f3c65496ddD185F81d5E5b0BC9004535521";
 
 export function DebugContracts() {
+  const { address } = useAccount();
   const contractsData = useAllContracts();
   const contractNames = useMemo(() => Object.keys(contractsData) as ContractName[], [contractsData]);
 
@@ -24,6 +27,10 @@ export function DebugContracts() {
       setSelectedContract(contractNames[0]);
     }
   }, [contractNames, selectedContract, setSelectedContract]);
+
+  if (!address || address.toLowerCase() !== ADMIN_ADDRESS.toLowerCase()) {
+    return <div className="text-center p-4">You don't have access</div>;
+  }
 
   return (
     <div className="flex flex-col gap-y-6 lg:gap-y-8 py-8 lg:py-12 justify-center items-center">

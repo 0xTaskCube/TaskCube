@@ -19,11 +19,10 @@ const HeroSection = () => {
 
   const handleStartClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    // 获取当前 URL 中的 inviter 参数
+
     const urlParams = new URLSearchParams(window.location.search);
     const inviter = urlParams.get("inviter");
 
-    // 如果有 inviter 参数，则带着参数跳转
     if (inviter) {
       router.push(`/start?inviter=${inviter}`);
     } else {

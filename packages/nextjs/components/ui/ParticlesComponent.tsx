@@ -27,7 +27,7 @@ import { loadSlim } from "tsparticles-slim";
 
 const ParticlesComponent = () => {
   const particlesInit = async (main: any) => {
-    await loadSlim(main); // 使用 Slim 版本的 tsparticles
+    await loadSlim(main);
   };
 
   return (

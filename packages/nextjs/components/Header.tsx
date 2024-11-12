@@ -40,10 +40,6 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/team",
     icon: <UsersIcon className="h-4 w-4" />,
   },
-  {
-    label: "合约调试",
-    href: "/deposit",
-  },
 ];
 
 export const HeaderMenuLinks = () => {
