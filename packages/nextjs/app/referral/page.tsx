@@ -14,30 +14,26 @@ const ReferralPage = () => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // 生成邀请链接
   useEffect(() => {
     if (typeof window !== "undefined" && currentAddress) {
       const baseUrl = `${window.location.protocol}//${window.location.host}`;
-      // 修改为指向根路径
+
       setReferralLink(`${baseUrl}/?inviter=${currentAddress}`);
       setLoading(false);
     }
   }, [currentAddress]);
 
-  // 获取邀请奖励
   useEffect(() => {
     const fetchReferralRewards = async () => {
       if (currentAddress) {
         try {
-          // 获取奖励数据
           const response = await fetch(`/api/task/getBounty?address=${currentAddress}`);
           const data = await response.json();
-          console.log("获取到的奖励数据:", data);
+          console.log("Obtained reward data:", data);
 
           if (data.success) {
             let totalReferralRewards = 0;
 
-            // 遍历所有分配记录，计算邀请奖励
             data.details.distributions.forEach((dist: any) => {
               if (dist.directInviterAddress === currentAddress) {
                 totalReferralRewards += Number(dist.directInviterReward) || 0;
@@ -47,11 +43,10 @@ const ReferralPage = () => {
               }
             });
 
-            // 设置可用的邀请奖励
             setReferralReward(totalReferralRewards.toFixed(2));
           }
         } catch (error) {
-          console.error("获取邀请奖励失败:", error);
+          console.error("Failed to obtain invitation reward:", error);
         }
       }
     };
@@ -59,14 +54,13 @@ const ReferralPage = () => {
     fetchReferralRewards();
   }, [currentAddress]);
 
-  // 复制链接
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Twitter分享
+  // Twitter
   const handleTwitterShare = () => {
     const tweetText = encodeURIComponent(
       `🎉 Join TaskCube - Your Gateway to Web3 Tasks! 🚀\n\n` +
@@ -92,11 +86,11 @@ const ReferralPage = () => {
     <div className="md:mt-20 flex flex-col items-center justify-center bg-black text-white p-4">
       {/* Top Section */}
       <div className="border border-[#424242] bg-base-400 rounded-xl shadow-lg p-6 max-w-4xl w-full text-center mb-8">
-        <h1 className="text-2xl font-bold">You earn 10% of the points your friends make</h1>
-        <p className="text-sm mt-4">
-          Referral deposits are supported on Ethereum mainnet and Layer 2s. To activate the referral, users need to use
-          the referral link and deposit ETH on mainnet to start accruing referral points. Once a referral is active, the
-          referring user will accrue 10% of all points, across all chains.
+        <h1 className="text-2xl font-bold">Earn 6% of your friend's task rewards</h1>
+        <p className="text-sm mt-4 text-left md:ml-4">
+          Share your referral link or invitation code (wallet address) to earn: • 5% Direct Reward from referred
+          users'task earnings • 1% Indirect Reward from sub-referred users'task earnings All rewards are
+          automaticallyallocated and can be claimed anytime via Dashboard.
         </p>
       </div>
       <div className="shadow-lg w-full max-w-4xl">

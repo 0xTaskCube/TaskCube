@@ -64,11 +64,9 @@ const DepositWithdrawalPage = () => {
 
   useEffect(() => {
     if (walletClient && depositWithdrawContract && address) {
-      // 预热 walletClient 和 contract
       walletClient.getAddresses();
       depositWithdrawContract.read.getBalance([address as `0x${string}`]).catch(error => {
-        // 忽略预热过程中的错误
-        console.debug("预热 getBalance 调用失败:", error);
+        console.debug("getBalance call failed:", error);
       });
     }
   }, [walletClient, depositWithdrawContract, address]);
@@ -112,11 +110,9 @@ const DepositWithdrawalPage = () => {
   const updatePlatformBalance = useCallback(async () => {
     if (address && depositWithdrawContract) {
       try {
-        // 获取用户在合约中的总存款余额
         const totalDeposit = await depositWithdrawContract.read.getTotalDeposit([address as `0x${string}`]);
         const formattedTotalDeposit = formatUnits(totalDeposit, 6);
 
-        // 获取待处理的提现总额和已执行的提现总额
         const response = await fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`);
         const data = await response.json();
 
@@ -124,55 +120,53 @@ const DepositWithdrawalPage = () => {
           const pendingWithdrawals = data.pendingWithdrawalsTotal;
           const executedWithdrawals = data.executedWithdrawalsTotal;
 
-          // 设置平台总余额（总存款减去已执行的提现）
           const platformBalanceValue = Math.max(0, parseFloat(formattedTotalDeposit) - parseFloat(executedWithdrawals));
           setPlatformBalance(platformBalanceValue.toFixed(2));
 
-          // 计算可用余额（平台总余额减去待处理的提现）
           const availableBalanceValue = Math.max(0, platformBalanceValue - parseFloat(pendingWithdrawals));
           setAvailableBalance(availableBalanceValue.toFixed(2));
 
-          console.log("用户总存款:", formattedTotalDeposit);
-          console.log("已执行提现总额:", executedWithdrawals);
-          console.log("待处理提现总额:", pendingWithdrawals);
-          console.log("平台总余额:", platformBalanceValue.toFixed(2));
-          console.log("用户可用余额:", availableBalanceValue.toFixed(6));
+          console.log("total user deposits:", formattedTotalDeposit);
+          console.log("executedWithdrawals:", executedWithdrawals);
+          console.log("pendingWithdrawals:", pendingWithdrawals);
+          console.log("platformBalanceValue:", platformBalanceValue.toFixed(2));
+          console.log("availableBalanceValue:", availableBalanceValue.toFixed(6));
         } else {
-          console.error("获取余额信息失败:", data.error);
+          console.error("Failed to obtain balance information:", data.error);
           setPlatformBalance(formattedTotalDeposit);
           setAvailableBalance(formattedTotalDeposit);
         }
       } catch (error) {
-        console.error("获取用户余额失败:", error);
+        console.error("Failed to obtain balance information:", error);
       }
     }
   }, [address, depositWithdrawContract]);
 
   const fetchTransactionRecords = useCallback(async () => {
     if (address) {
-      setIsLoadingRecords(true); // 开始加载
+      setIsLoadingRecords(true);
       try {
         const response = await fetch(
           `/api/DepositWithdrawal?userAddress=${address}&action=getTransactions&status=success,pending`,
         );
         const data = await response.json();
         if (data.success) {
-          console.log("API 返回的交易记录:", data.transactions);
+          console.log("API Returned transaction records:", data.transactions);
           setTransactionRecords(data.transactions);
         } else {
-          console.error("获取交易记录失败:", data.error);
+          console.error("Failed to obtain transaction records:", data.error);
         }
       } catch (error) {
-        console.error("获取交易记录失败:", error);
+        console.error("Failed to obtain transaction records:", error);
       } finally {
-        setIsLoadingRecords(false); // 结束加载
+        setIsLoadingRecords(false);
       }
     }
   }, [address]);
 
   useEffect(() => {
     if (usdtBalanceData) {
-      setUsdtBalance(formatUnits(usdtBalanceData.value, 6)); // USDT 使用 6 位小数
+      setUsdtBalance(formatUnits(usdtBalanceData.value, 6));
     }
     updatePlatformBalance();
   }, [usdtBalanceData, updatePlatformBalance, activeTab]);
@@ -185,7 +179,7 @@ const DepositWithdrawalPage = () => {
 
   const handleTransaction = useCallback(async () => {
     if (!isConnected || !depositWithdrawContract || !walletClient || !publicClient) {
-      notification.error("请先连接钱包");
+      notification.error("Please connect the wallet");
       return;
     }
 
@@ -195,7 +189,7 @@ const DepositWithdrawalPage = () => {
       const parsedAmount = parseUnits(usdtAmount, 6);
 
       if (activeTab === "deposit") {
-        // 存款逻辑
+        // deposit
         const { request } = await publicClient.simulateContract({
           account: address,
           address: USDT_ADDRESS,
@@ -215,10 +209,8 @@ const DepositWithdrawalPage = () => {
         });
         const depositTx = await walletClient.writeContract(depositRequest);
 
-        // 等待交易确认
         await publicClient.waitForTransactionReceipt({ hash: depositTx });
 
-        // 只有在交易确认后，才记录交易
         await fetch("/api/DepositWithdrawal", {
           method: "POST",
           headers: {
@@ -232,9 +224,9 @@ const DepositWithdrawalPage = () => {
           }),
         });
 
-        notification.success("存款成功");
+        notification.success("Deposit successful");
       } else {
-        // 提现逻辑
+        // withdrawal
         const { request } = await publicClient.simulateContract({
           account: address,
           address: depositWithdrawContract.address,
@@ -244,10 +236,8 @@ const DepositWithdrawalPage = () => {
         });
         const withdrawTx = await walletClient.writeContract(request);
 
-        // 等待交易确认
         const receipt = await publicClient.waitForTransactionReceipt({ hash: withdrawTx });
 
-        // 解析事件日志
         const withdrawalRequestedEvent = receipt.logs
           .map(log => {
             try {
@@ -266,7 +256,6 @@ const DepositWithdrawalPage = () => {
           const requestId = (withdrawalRequestedEvent.args as any).requestId;
           setWithdrawalRequestId(requestId.toString());
 
-          // 只有在事件确认后，才记录交易
           await fetch("/api/DepositWithdrawal", {
             method: "POST",
             headers: {
@@ -281,19 +270,17 @@ const DepositWithdrawalPage = () => {
             }),
           });
 
-          notification.success("提现请求已提交，请等待处理");
+          notification.success("The request has been submitted, processing...");
         } else {
-          throw new Error("未能找到 WithdrawalRequested 事件");
+          throw new Error("No fond WithdrawalRequested");
         }
       }
 
-      // 更新余额和刷新交易记录
       await updatePlatformBalance();
       await fetchTransactionRecords();
     } catch (error) {
-      console.error("交易失败:", error);
-      notification.error("交易失败: " + (error as Error).message);
-      // 不记录失败的交易
+      console.error("Transaction failed:", error);
+      notification.error("Transaction failed: " + (error as Error).message);
     } finally {
       setIsLoading(false);
       setUsdtAmount("0");
@@ -399,7 +386,7 @@ const DepositWithdrawalPage = () => {
             {isLoading ? (
               <div className="flex items-center justify-center">
                 <Loading size="sm" color="primary" className="mr-2" />
-                处理中...
+                Processing...
               </div>
             ) : (
               <div className="flex items-center justify-center">
@@ -451,7 +438,7 @@ const DepositWithdrawalPage = () => {
             </ul>
           ) : (
             <div className="flex flex-col items-center justify-center py-20">
-              <p className="text-gray-400">暂无交易记录</p>
+              <p className="text-gray-400">No transaction record yet</p>
             </div>
           )}
         </div>

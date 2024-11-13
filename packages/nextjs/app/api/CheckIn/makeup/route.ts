@@ -36,7 +36,6 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const currentMonth = getUTC8Date(now).toISOString().slice(0, 7);
 
-    // 检查本月是否已经补签过
     if (userData.lastMakeup === currentMonth) {
       return NextResponse.json({ error: "Already made up this month" }, { status: 400 });
     }
@@ -50,7 +49,6 @@ export async function POST(request: NextRequest) {
       (getUTC8Date(now).getTime() - getUTC8Date(lastCheckIn).getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    // 获取允许的补签天数
     let makeupDaysAllowed = 0;
     switch (level) {
       case "Prime":
@@ -100,7 +98,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Failed to update user data");
     }
   } catch (error) {
-    console.error("补签失败:", error);
+    console.error("Failed to re-sign:", error);
     return NextResponse.json({ error: "Failed to make up check-in" }, { status: 500 });
   }
 }

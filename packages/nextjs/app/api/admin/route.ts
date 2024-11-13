@@ -49,23 +49,19 @@ interface WithdrawalRequest {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userAddress = searchParams.get("userAddress");
-  console.log("API 路由被调用", { userAddress });
 
   if (!userAddress || userAddress.toLowerCase() !== ADMIN_ADDRESS.toLowerCase()) {
-    console.log("权限检查失败");
-    return NextResponse.json({ success: false, error: "没有管理员权限" }, { status: 403 });
+    return NextResponse.json({ success: false, error: "No administrator rights" }, { status: 403 });
   }
 
   try {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    // 处理提现请求
     const collection = db.collection<WithdrawalRequest>("transactions");
-    console.log("查询的集合名称:", collection.collectionName);
 
     const withdrawRequests = await collection.find({ type: "withdraw" }).toArray();
-    console.log("提现请求返回的记录:", withdrawRequests);
+    console.log("Records returned by withdrawal request:", withdrawRequests);
 
     const formattedRequests = withdrawRequests.map(request => ({
       ...request,
@@ -73,7 +69,7 @@ export async function GET(request: Request) {
       amount: request.amount.toString(),
     }));
 
-    console.log("格式化后的提现请求:", formattedRequests);
+    console.log("Formatted withdrawal request:", formattedRequests);
     return NextResponse.json({
       success: true,
       requests: formattedRequests,
@@ -82,8 +78,8 @@ export async function GET(request: Request) {
       executedCount: formattedRequests.filter(r => r.status === "executed").length,
     });
   } catch (error) {
-    console.error("获取提现请求失败:", error);
-    let errorMessage = "获取提现请求失败";
+    console.error("Failed to obtain withdrawal request:", error);
+    let errorMessage = "Failed to obtain withdrawal request";
     if (error instanceof Error) {
       errorMessage += ": " + error.message;
     }
@@ -96,14 +92,14 @@ export async function POST(request: Request) {
   const userAddress = searchParams.get("userAddress");
 
   if (!userAddress || userAddress.toLowerCase() !== ADMIN_ADDRESS.toLowerCase()) {
-    return NextResponse.json({ success: false, error: "没有管理员权限" }, { status: 403 });
+    return NextResponse.json({ success: false, error: "No administrator rights" }, { status: 403 });
   }
 
   try {
     const { userAddress, amount, type, contractRequestId } = await request.json();
 
     if (!userAddress || !amount || !type) {
-      return NextResponse.json({ success: false, error: "缺少必要的字段" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Required fields are missing" }, { status: 400 });
     }
     const client = await clientPromise;
     const db = client.db("taskcube");
@@ -125,8 +121,8 @@ export async function POST(request: Request) {
       transaction: { ...transaction, _id: result.insertedId.toString() },
     });
   } catch (error) {
-    console.error("交易记录失败:", error);
-    return NextResponse.json({ success: false, error: "交易记录失败" }, { status: 500 });
+    console.error("Transaction record failed:", error);
+    return NextResponse.json({ success: false, error: "Transaction record failed" }, { status: 500 });
   }
 }
 
@@ -135,32 +131,31 @@ export async function PUT(request: Request) {
   const userAddress = searchParams.get("userAddress");
 
   if (!userAddress || userAddress.toLowerCase() !== ADMIN_ADDRESS.toLowerCase()) {
-    console.log("权限检查失败");
-    return NextResponse.json({ success: false, error: "没有管理员权限" }, { status: 403 });
+    console.log("Permission check failed");
+    return NextResponse.json({ success: false, error: "No administrator rights" }, { status: 403 });
   }
 
   try {
     let body;
     try {
       body = await request.json();
-      console.log("成功解析请求体:", body);
+      console.log("Successfully parsed request body:", body);
     } catch (error) {
-      console.error("解析请求体失败:", error);
-      return NextResponse.json({ success: false, error: "无效的请求体格式" }, { status: 400 });
+      console.error("Failed to parse request body:", error);
+      return NextResponse.json({ success: false, error: "Invalid request body format" }, { status: 400 });
     }
 
-    // 验证提现请求数据
     if (!body || !body.contractRequestIds || !Array.isArray(body.contractRequestIds)) {
-      console.error("无效的请求体格式");
-      return NextResponse.json({ success: false, error: "无效的请求格式" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Invalid request format" }, { status: 400 });
     }
 
     const { contractRequestIds } = body;
-    console.log("接收到的合约请求 ID:", contractRequestIds);
 
     if (contractRequestIds.length === 0) {
-      console.error("合约请求 ID 列表为空");
-      return NextResponse.json({ success: false, error: "没有提供要处理的合约请求 ID" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "No contract request provided to process ID" },
+        { status: 400 },
+      );
     }
 
     const client = await clientPromise;
@@ -168,42 +163,39 @@ export async function PUT(request: Request) {
     const collection = db.collection<WithdrawalRequest>("transactions");
 
     const requests = await collection.find({ contractRequestId: { $in: contractRequestIds } }).toArray();
-    console.log("从数据库获取的请求:", requests);
 
     if (requests.length === 0) {
-      console.error("未找到匹配的请求");
-      return NextResponse.json({ success: false, error: "未找到匹配的请求" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "No matching request found" }, { status: 404 });
     }
 
     const updateResult = await collection.updateMany(
       { contractRequestId: { $in: contractRequestIds } },
       { $set: { status: "approved" } },
     );
-    console.log("数据库更新结果:", updateResult);
 
     const targetNetworks = getTargetNetworks();
     if (targetNetworks.length === 0) {
-      throw new Error("没有找到目标网络");
+      throw new Error("Target network not found");
     }
     const targetNetwork = targetNetworks[0];
 
     const typedDeployedContracts = deployedContracts as unknown as DeployedContracts;
 
     if (targetNetwork.id !== 11155111) {
-      throw new Error("不支持的网络");
+      throw new Error("Unsupported network");
     }
 
     const contractConfig = typedDeployedContracts[11155111].DepositWithdraw;
 
     if (!contractConfig) {
-      throw new Error("合约配置未找到");
+      throw new Error("Contract configuration not found");
     }
 
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
     const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     if (!privateKey) {
-      console.error("部署者私钥未设置");
-      return NextResponse.json({ success: false, error: "部署者私钥未设置" }, { status: 500 });
+      console.error("Private key not set");
+      return NextResponse.json({ success: false, error: "Private key not set" }, { status: 500 });
     }
 
     const wallet = new ethers.Wallet(privateKey, provider);
@@ -213,49 +205,42 @@ export async function PUT(request: Request) {
 
     for (const request of requests) {
       try {
-        console.log(`开始处理请求 ID: ${request._id}`);
         if (!request.contractRequestId) {
-          console.error(`请求 ${request._id} 缺少 contractRequestId`);
+          console.error(`request ${request._id} lack contractRequestId`);
           continue;
         }
 
-        console.log(`准备调用合约方法 executeWithdrawal`);
-        console.log(`合约请求 ID: ${request.contractRequestId}`);
-
         const tx = await contract.executeWithdrawal(request.contractRequestId);
-        console.log(`交易已发送，哈希:`, tx.hash);
+
         const receipt = await tx.wait();
-        console.log(`交易收据:`, receipt);
 
         executedCount++;
 
-        console.log(`更新数据库状态为 "executed"`);
         await collection.updateOne({ _id: request._id }, { $set: { status: "executed" } });
       } catch (error) {
-        console.error(`执行提现请求 ${request._id} 失败:`, error);
+        console.error(`Execute withdrawal request ${request._id} fail:`, error);
         if (error instanceof Error) {
-          console.error(`错误类型: ${error.name}`);
-          console.error(`错误消息: ${error.message}`);
-          console.error(`错误堆栈: ${error.stack}`);
+          console.error(`error type: ${error.name}`);
+          console.error(`error message: ${error.message}`);
+          console.error(`error stack: ${error.stack}`);
         }
-        console.log(`将状态改回 "pending"`);
+
         await collection.updateOne({ _id: request._id }, { $set: { status: "pending" } });
       }
     }
 
-    console.log(`执行完成，成功执行 ${executedCount} 个请求`);
     return NextResponse.json({
       success: true,
-      message: `${updateResult.modifiedCount} 个提现请求已批准，${executedCount} 个已执行`,
+      message: `${updateResult.modifiedCount} Withdrawal request has been approved,${executedCount} executed`,
     });
   } catch (error) {
-    console.error("请求处理失败:", error);
+    console.error("Request processing failed:", error);
     if (error instanceof Error) {
-      console.error(`错误类型: ${error.name}`);
-      console.error(`错误消息: ${error.message}`);
-      console.error(`错误堆栈: ${error.stack}`);
+      console.error(`error.name: ${error.name}`);
+      console.error(`error.message: ${error.message}`);
+      console.error(`error.stack: ${error.stack}`);
     }
-    let errorMessage = "请求处理失败";
+    let errorMessage = "Request processing failed";
     if (error instanceof Error) {
       errorMessage += ": " + error.message;
     }

@@ -152,7 +152,6 @@ const Dashboard = () => {
       if (address) {
         setIsLoading(true);
         try {
-          // 1. 获取余额和邀请数据
           const [balanceResponse, invitesResponse] = await Promise.all([
             fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`),
             fetch(`/api/invites?inviter=${address}`),
@@ -160,19 +159,17 @@ const Dashboard = () => {
 
           const [balanceData, invitesData] = await Promise.all([balanceResponse.json(), invitesResponse.json()]);
 
-          // 处理余额数据
           if (balanceData.success) {
             const balance = parseFloat(balanceData.availableBalance);
             setAvailableBalance(balance.toFixed(2));
 
-            // 处理等级逻辑
             const qualifiedInvitesPrime =
               invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 1000).length || 0;
 
             const qualifiedInvitesVanguard =
               invitesData.invites?.filter((invite: any) => parseFloat(invite.balance) >= 1000).length || 0;
 
-            // 设置用户等级
+            // Set user level
             if (balance >= 3000 && qualifiedInvitesPrime >= 120) {
               setUserLevel({ level: "Prime" });
             } else if (balance >= 3000 && qualifiedInvitesVanguard >= 11) {
@@ -186,30 +183,24 @@ const Dashboard = () => {
             }
           }
 
-          // 保存邀请数据
           if (invitesData.invites) {
             setInvites(invitesData.invites);
           }
 
-          // 2. 获取奖励数据
           const bountyResponse = await fetch(`/api/task/getBounty?address=${address}`);
           const bountyData = await bountyResponse.json();
 
           if (bountyData.success) {
-            // 设置任务奖励
             setBounty(bountyData.bounty);
 
-            // 计算邀请奖励总额 = 直接邀请奖励 + 间接邀请奖励
             const totalInviterRewards = (
               parseFloat(bountyData.details.directInviterRewards) +
               parseFloat(bountyData.details.indirectInviterRewards)
             ).toFixed(2);
             setInviterRewards(totalInviterRewards);
 
-            // 3. 获取任务记录并处理
             const tasksResponse = await fetch(`/api/task?address=${address}`);
             const tasksData = await tasksResponse.json();
-            console.log("获取到的任务数据:", tasksData);
 
             if (tasksData.acceptedTasks) {
               const completedTasks = tasksData.acceptedTasks
@@ -232,13 +223,12 @@ const Dashboard = () => {
                   };
                 });
 
-              console.log("处理后的任务记录:", completedTasks);
               setCompletedTasks(completedTasks);
             }
           }
         } catch (error) {
-          console.error("获取数据失败:", error);
-          notification.error("获取数据失败");
+          console.error("Failed to get data:", error);
+          notification.error("Failed to get data");
         } finally {
           setIsLoading(false);
         }
@@ -248,9 +238,8 @@ const Dashboard = () => {
     fetchData();
   }, [address]);
 
-  // 3. 修改 handleClaimBounty 函数
   const handleClaimBounty = useCallback(() => {
-    console.log("当前状态:", {
+    console.log("Current status:", {
       bounty,
       bountyId,
       inviterRewards,
@@ -258,24 +247,35 @@ const Dashboard = () => {
     });
 
     if (parseFloat(bounty) > 0) {
-      // 直接设置一个默认的任务ID
-      setBountyId("task"); // 使用固定值 "task"
+      setBountyId("task");
       setIsClaimModalOpen(true);
     }
   }, [bounty, inviterRewards]);
 
   const levelTooltip = `
-等级说明：
-  - Initiate: 新手级别
-  - Operative: 充值1000 USDT保证金
-  - Enforcer: 充值满 500 USDT
-  - Vanguard: 充值满 1000 USDT,并且直接邀请 1 个用户且该用户充值满 100 USDT
-  -Prime: 充值满 3000 USDT,并且直接邀请 2 个用户且这些用户充值满 200 USDT
+Level Description:
+
+🟢 Initiate
+   • Newbie Welcome Level
+
+🔵 Operative
+   • Margin ≥ 1000 USDT
+
+🔴 Enforcer
+   • Margin ≥ 3000 USDT
+
+🟣 Vanguard
+   • Margin ≥ 3000 USDT
+   • Invite 11 Operative users
+
+🟡 Prime
+   • Margin ≥ 3000 USDT
+   • Invite 120 Operative users
   `.trim();
 
   const cardData = [
     { title: "Effective Margin", value: `$${availableBalance}`, link: "/user-dw" },
-    { title: "Effective Bounty", value: `$${bounty}`, action: { text: "Claim", onClick: handleClaimBounty } },
+    { title: "Task Reward", value: `$${bounty}`, action: { text: "Claim", onClick: handleClaimBounty } },
     { title: "Level", value: userLevel.level, level: userLevel.level, tooltip: levelTooltip },
   ];
 
@@ -382,7 +382,7 @@ const Dashboard = () => {
         <ClaimModal
           isOpen={isClaimModalOpen}
           onClose={() => setIsClaimModalOpen(false)}
-          availableAmount={bountyId ? bounty : inviterRewards} // 根据类型传递不同的金额
+          availableAmount={bountyId ? bounty : inviterRewards}
           bountyId={bountyId || ""}
           type={bountyId ? "task" : "invite"}
         />

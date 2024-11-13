@@ -49,7 +49,7 @@ const AdminPage = () => {
       try {
         const response = await fetch(`/api/admin?userAddress=${address}`);
         if (!response.ok) {
-          throw new Error(`API 请求失败: ${response.status}`);
+          throw new Error(`API Request failed: ${response.status}`);
         }
         const data = await response.json();
         if (data.success && Array.isArray(data.requests)) {
@@ -60,8 +60,10 @@ const AdminPage = () => {
           setWithdrawalRequests(formattedRequests);
         }
       } catch (error) {
-        console.error("获取提现请求失败:", error);
-        notification.error("获取提现请求失败: " + (error instanceof Error ? error.message : String(error)));
+        console.error("Failed to obtain withdrawal request:", error);
+        notification.error(
+          "Failed to obtain withdrawal request: " + (error instanceof Error ? error.message : String(error)),
+        );
       }
     }
   }, [address]);
@@ -71,7 +73,7 @@ const AdminPage = () => {
       try {
         const response = await fetch(`/api/admin?userAddress=${address}&type=claims`);
         if (!response.ok) {
-          throw new Error(`API 请求失败: ${response.status}`);
+          throw new Error(`API Request failed: ${response.status}`);
         }
         const data = await response.json();
         if (data.success && data.claims) {
@@ -83,49 +85,48 @@ const AdminPage = () => {
             bountyId: claim.bountyId || "",
             status: claim.status || "pending",
             isLoading: false,
-            contractRequestId: claim.contractRequestId, // 改为 contractRequestId
+            contractRequestId: claim.contractRequestId,
             transactionHash: claim.transactionHash,
             date: claim.date,
           }));
-          console.log("获取到的领取申请:", formattedClaims);
           setClaimRequests(formattedClaims);
         }
       } catch (error) {
-        console.error("获取领取申请失败:", error);
-        notification.error("获取领取申请失败: " + (error instanceof Error ? error.message : String(error)));
+        notification.error(
+          "Failed to obtain the application: " + (error instanceof Error ? error.message : String(error)),
+        );
       }
     }
   }, [address]);
 
   const checkContractState = useCallback(async () => {
     if (!depositWithdrawContract || !publicClient) {
-      notification.error("合约未初始化");
+      notification.error("The contract is not initialized");
       return;
     }
     try {
-      notification.info("正在检查合约状态...");
+      notification.info("Checking contract status...");
       const paused = await depositWithdrawContract.read.paused();
-      notification.success(`合约状态: ${paused ? "已暂停" : "运行中"}`);
+      notification.success(`Contract status: ${paused ? "Suspended" : "Running"}`);
     } catch (error) {
-      console.error("检查合约状态失败:", error);
-      notification.error("检查合约状态失败");
+      console.error("Failed to check contract status:", error);
+      notification.error("Failed to check contract status");
     }
   }, [depositWithdrawContract, publicClient]);
 
   const handleApprove = useCallback(
     async (requestIds: string[]) => {
       if (!requestIds || requestIds.length === 0) {
-        notification.error("没有选择要批准的请求");
+        notification.error("No requests selected for approval");
         return;
       }
-      console.log("准备批准的请求IDs:", requestIds);
+      console.log("Prepare request IDs for approval:", requestIds);
 
-      // 获取选中请求的 contractRequestId
       const selectedRequests = withdrawalRequests.filter(request => requestIds.includes(request._id));
       const contractRequestIds = selectedRequests.map(request => request.contractRequestId).filter(Boolean);
 
       if (contractRequestIds.length === 0) {
-        notification.error("选中的请求缺少合约请求ID");
+        notification.error("The selected request is missing the contract request ID");
         return;
       }
 
@@ -134,7 +135,7 @@ const AdminPage = () => {
       );
 
       try {
-        notification.info("正在处理提现请求...");
+        notification.info("Processing...");
         const response = await fetch(`/api/admin?userAddress=${address}`, {
           method: "PUT",
           headers: {
@@ -142,21 +143,23 @@ const AdminPage = () => {
           },
           body: JSON.stringify({
             contractRequestIds,
-            type: "withdrawals", // 添加类型标识
+            type: "withdrawals",
           }),
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "处理提现请求失败");
+          throw new Error(errorData.error || "Failed to process withdrawal request");
         }
 
         const result = await response.json();
         notification.success(result.message);
         await fetchWithdrawalRequests();
       } catch (error) {
-        console.error("处理提现请求失败:", error);
-        notification.error("处理提现请求失败: " + (error instanceof Error ? error.message : String(error)));
+        console.error("Failed to process withdrawal request:", error);
+        notification.error(
+          "Failed to process withdrawal request: " + (error instanceof Error ? error.message : String(error)),
+        );
       } finally {
         setWithdrawalRequests(prevRequests =>
           prevRequests.map(request => (requestIds.includes(request._id) ? { ...request, isLoading: false } : request)),
@@ -169,24 +172,22 @@ const AdminPage = () => {
   const handleApproveClaims = useCallback(
     async (claimIds: string[]) => {
       if (!claimIds || claimIds.length === 0) {
-        notification.error("没有选择要批准的领取申请");
+        notification.error("No applications selected for approval");
         return;
       }
 
-      // 过滤出未处理的申请
       const pendingClaims = claimRequests.filter(
         claim => claimIds.includes(claim._id) && claim.status.toLowerCase() === "pending",
       );
 
       if (pendingClaims.length === 0) {
-        notification.error("所选申请已被处理");
+        notification.error("Application has been processed");
         return;
       }
 
       const pendingClaimIds = pendingClaims.map(claim => claim._id);
-      console.log("待处理的申请:", pendingClaimIds);
+      console.log("Pending applications:", pendingClaimIds);
 
-      // 更新加载状态
       setClaimRequests(prevRequests =>
         prevRequests.map(request =>
           pendingClaimIds.includes(request._id) ? { ...request, isLoading: true } : request,
@@ -194,7 +195,7 @@ const AdminPage = () => {
       );
 
       try {
-        notification.info("正在处理领取申请...");
+        notification.info("Application is being processed...");
         const response = await fetch(`/api/admin?userAddress=${address}&type=claims`, {
           method: "PUT",
           headers: {
@@ -206,15 +207,17 @@ const AdminPage = () => {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "处理领取申请失败");
+          throw new Error(errorData.error || "Failed to process collection application");
         }
 
         const result = await response.json();
         notification.success(result.message);
         await fetchClaimRequests();
       } catch (error) {
-        console.error("处理批准领取申请时出错:", error);
-        notification.error("处理批准领取申请失败: " + (error instanceof Error ? error.message : String(error)));
+        console.error("An error occurred while processing the approval claim request:", error);
+        notification.error(
+          "Failed to process collection application: " + (error instanceof Error ? error.message : String(error)),
+        );
       } finally {
         setClaimRequests(prevRequests =>
           prevRequests.map(request =>
@@ -234,7 +237,6 @@ const AdminPage = () => {
     }
   }, [activeTab, selectedRequests, handleApprove, handleApproveClaims]);
 
-  // 2. 修改 useEffect，添加自动刷新
   useEffect(() => {
     if (address) {
       fetchWithdrawalRequests();
@@ -243,61 +245,61 @@ const AdminPage = () => {
   }, [address, fetchWithdrawalRequests, fetchClaimRequests]);
 
   if (!isConnected) {
-    return <div className="container mx-auto p-4">请先连接钱包</div>;
+    return <div className="container mx-auto p-4">Please connect the wallet first</div>;
   }
 
   if (address?.toLowerCase() !== ADMIN_ADDRESS.toLowerCase()) {
-    return <div className="container mx-auto p-4">您没有权限访问此页面</div>;
+    return <div className="container mx-auto p-4">You do not have permission to access this page</div>;
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold my-4">管理员页面</h1>
+      <h1 className="text-2xl font-bold my-4">Admin page</h1>
       <div className="flex space-x-4 mb-4">
         <button
           onClick={() => setActiveTab("withdrawals")}
           className={`py-2 px-4 rounded ${activeTab === "withdrawals" ? "bg-blue-500 text-white" : "bg-gray-300"}`}
         >
-          提现请求
+          Withdrawal request
         </button>
         <button
           onClick={() => setActiveTab("claims")}
           className={`py-2 px-4 rounded ${activeTab === "claims" ? "bg-blue-500 text-white" : "bg-primary"}`}
         >
-          领取申请
+          Task reward
         </button>
       </div>
 
       {activeTab === "withdrawals" ? (
         <div>
           {withdrawalRequests.length === 0 ? (
-            <p className="text-lg text-gray-200">目前没有待处理的提现请求</p>
+            <p className="text-lg text-gray-200">No withdrawal requests pending</p>
           ) : (
             <>
               <button
                 onClick={checkContractState}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4 mr-4"
               >
-                检查合约状态
+                Check the contract
               </button>
               <button
                 onClick={handleBatchApprove}
                 className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mb-4"
                 disabled={selectedRequests.length === 0}
               >
-                批量审批 ({selectedRequests.length})
+                Batch approval ({selectedRequests.length})
               </button>
               <table className="min-w-full bg-base-400 text-white">
                 <thead>
                   <tr>
-                    <th className="py-2 border-b text-center">选择</th>
-                    <th className="py-2 border-b text-center">请求ID</th>
-                    <th className="py-2 border-b text-center">用户地址</th>
-                    <th className="py-2 px-4 border-b text-center">金额</th>
-                    <th className="py-2 px-4 border-b text-center">代币</th>
-                    <th className="py-2 px-4 border-b text-center">日期</th>
-                    <th className="py-2 px-4 border-b text-center">状态</th>
-                    <th className="py-2 px-4 border-b text-center">操作</th>
+                    <th className="py-2 border-b text-center">Choose</th>
+                    <th className="py-2 border-b text-center">ID</th>
+                    <th className="py-2 border-b text-center">Address</th>
+                    <th className="py-2 px-4 border-b text-center">Amount</th>
+                    <th className="py-2 px-4 border-b text-center">Token</th>
+                    <th className="py-2 px-4 border-b text-center">Date</th>
+                    <th className="py-2 px-4 border-b text-center">State</th>
+                    <th className="py-2 px-4 border-b text-center">Operate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -330,7 +332,7 @@ const AdminPage = () => {
                               : ""
                           }`}
                         >
-                          {request.status || "未知"}
+                          {request.status || "unknown"}
                         </span>
                       </td>
                       <td className="py-2 px-4 border-b text-center">
@@ -339,7 +341,7 @@ const AdminPage = () => {
                           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                           disabled={request.isLoading || request.status === "Approved"}
                         >
-                          {request.isLoading ? "处理中..." : request.status === "Approved" ? "已批准" : "批准"}
+                          {request.isLoading ? "Processing..." : request.status === "Approved" ? "Approved" : "approve"}
                         </button>
                       </td>
                     </tr>
@@ -352,7 +354,7 @@ const AdminPage = () => {
       ) : (
         <div>
           {claimRequests.length === 0 ? (
-            <p className="text-lg text-gray-200">目前没有待处理的领取申请</p>
+            <p className="text-lg text-gray-200">There are no pending claims</p>
           ) : (
             <>
               <button
@@ -360,18 +362,18 @@ const AdminPage = () => {
                 className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mb-4"
                 disabled={selectedRequests.length === 0}
               >
-                批量审批领取申请 ({selectedRequests.length})
+                Batch approval ({selectedRequests.length})
               </button>
               <table className="min-w-full bg-base-400 text-white">
                 <thead>
                   <tr>
-                    <th className="py-2 border-b text-center">选择</th>
-                    <th className="py-2 border-b text-center">申请ID</th>
-                    <th className="py-2 border-b text-center">用户地址</th>
-                    <th className="py-2 px-4 border-b text-center">金额</th>
-                    <th className="py-2 px-4 border-b text-center">任务ID</th>
-                    <th className="py-2 px-4 border-b text-center">状态</th>
-                    <th className="py-2 px-4 border-b text-center">操作</th>
+                    <th className="py-2 border-b text-center">Choose</th>
+                    <th className="py-2 border-b text-center">ID</th>
+                    <th className="py-2 border-b text-center">Address</th>
+                    <th className="py-2 px-4 border-b text-center">Amount</th>
+                    <th className="py-2 px-4 border-b text-center">Task ID</th>
+                    <th className="py-2 px-4 border-b text-center">State</th>
+                    <th className="py-2 px-4 border-b text-center">Operate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -403,7 +405,7 @@ const AdminPage = () => {
                               : ""
                           }`}
                         >
-                          {claim.status || "未知"}
+                          {claim.status || "unknown"}
                         </span>
                       </td>
                       <td className="py-2 px-4 border-b text-center">
@@ -412,7 +414,7 @@ const AdminPage = () => {
                           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                           disabled={claim.isLoading || claim.status === "Approved"}
                         >
-                          {claim.isLoading ? "处理中..." : claim.status === "Approved" ? "已批准" : "批准"}
+                          {claim.isLoading ? "Processing..." : claim.status === "Approved" ? "Approved" : "Approve"}
                         </button>
                       </td>
                     </tr>

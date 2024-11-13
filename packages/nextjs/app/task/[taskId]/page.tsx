@@ -51,7 +51,6 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
 
-  // 现有的状态声明
   const [isTaskExpired, setIsTaskExpired] = useState(false);
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -75,28 +74,26 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const getParticipationTypeColor = (type: string): string => {
     switch (type) {
       case "Initiate":
-        return "bg-[#0d9488]"; // 绿色
+        return "bg-[#0d9488]";
       case "Operative":
-        return "bg-[#3498db]"; // 蓝色
+        return "bg-[#3498db]";
       case "Enforcer":
-        return "bg-[#e74c3c]"; // 橙色
+        return "bg-[#e74c3c]";
       case "Vanguard":
-        return "bg-[#9b59b6]"; // 紫色
+        return "bg-[#9b59b6]";
       case "Prime":
-        return "bg-[#ffd700]"; // 金色
+        return "bg-[#ffd700]";
       default:
-        return "bg-gray-700"; // 保留默认颜色为深灰色
+        return "bg-gray-700";
     }
   };
 
-  // 使用现有的 getBounty API 获取剩余奖励
   const fetchRemainingReward = async () => {
     try {
       if (!task?.onChainTaskId || !taskRewardContract || !publicClient) {
         return;
       }
 
-      // 1. 获取任务信息
       const onChainTask = (await publicClient.readContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
@@ -104,7 +101,6 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         args: [BigInt(task.onChainTaskId)],
       })) as readonly [string, bigint, bigint, bigint, boolean];
 
-      // 2. 获取已领取的奖励金额
       const claimedAmount = await publicClient.readContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
@@ -112,13 +108,12 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         args: [BigInt(task.onChainTaskId)],
       });
 
-      // 3. 计算剩余可赎回的奖励
       const totalReward = Number(task.reward) * Number(task.taskCount);
       const claimed = Number(claimedAmount) / 1e6;
-      const approvedAmount = Number(task.reward) * completedCount; // 已批准任务的总金额
-      const remaining = totalReward - approvedAmount; // 使用已批准的数量来计算
+      const approvedAmount = Number(task.reward) * completedCount;
+      const remaining = totalReward - approvedAmount;
 
-      console.log("剩余奖励计算:", {
+      console.log("Calculation of remaining rewards:", {
         totalReward,
         claimedAmount: claimed,
         completedCount,
@@ -127,20 +122,17 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         taskStatus: onChainTask[4],
       });
 
-      // 只有当任务在链上的状态为非激活（已赎回）时才显示 0
       if (!onChainTask[4]) {
-        // 这里的 false 表示已赎回，而不是任务结束
         setRemainingReward("0");
       } else {
         setRemainingReward(remaining > 0 ? remaining.toFixed(2) : "0");
       }
     } catch (error) {
-      console.error("获取剩余奖励失败:", error);
+      console.error("Failed to obtain remaining rewards:", error);
       setRemainingReward("0");
     }
   };
 
-  // 修改 useEffect，在相关状态变化时重新获取剩余奖励
   useEffect(() => {
     if (task?.onChainTaskId) {
       fetchRemainingReward();
@@ -149,17 +141,17 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
 
   const fetchTask = async () => {
     try {
-      console.log("开始获取任务数据，taskId:", params.taskId);
+      console.log("Start getting task data, taskId:", params.taskId);
       const response = await fetch(`/api/task?taskId=${params.taskId}`);
-      console.log("API 响应状态:", response.status);
+      console.log("API response status:", response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log("获取到的任务数据:", data);
+
         if (!data.task) {
-          console.error("任务数据不完整:", data);
-          throw new Error("任务数据不完整");
+          console.error("Task data is incomplete:", data);
+          throw new Error("Task data is incomplete");
         }
-        setTask(data.task); // 注意这里，确保使用 data.task
+        setTask(data.task);
         setParticipants(data.task.participants || []);
         setTaskCount(parseInt(data.task.taskCount) || 0);
         const completed = (data.task.participants || []).filter((p: Participant) => p.status === "approved").length;
@@ -168,8 +160,8 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         throw new Error("Task not found");
       }
     } catch (error) {
-      console.error("获取任务详情失败:", error);
-      setError("获取任务详情失败");
+      console.error("Failed to get task details:", error);
+      setError("Failed to get task details");
     } finally {
       setLoading(false);
     }
@@ -183,42 +175,40 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     const fetchUserLevel = async () => {
       if (address) {
         try {
-          // 获取用户余额
           const balanceResponse = await fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`);
           const balanceData = await balanceResponse.json();
 
-          // 获取邀请信息
           const invitesResponse = await fetch(`/api/invites?inviter=${address}`);
           const invitesData = await invitesResponse.json();
 
           if (balanceData.success && invitesData.invites) {
             const balance = parseFloat(balanceData.availableBalance);
 
-            // 使用与 dashboard 相同的等级计算逻辑
+            // Uses the same level calculation logic as the dashboard
             let level: LevelType = "Initiate";
-            if (balance >= 500) {
+            if (balance >= 1000) {
               level = "Operative";
             }
-            if (balance >= 1000) {
+            if (balance >= 3000) {
               level = "Enforcer";
             }
 
             // Check for Vanguard level
-            const vanguardInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 100);
-            if (balance >= 2000 && vanguardInvites.length >= 1) {
+            const vanguardInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 1000);
+            if (balance >= 3000 && vanguardInvites.length >= 11) {
               level = "Vanguard";
             }
 
             // Check for Prime level
-            const primeInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 500);
-            if (balance >= 3000 && primeInvites.length >= 2) {
+            const primeInvites = invitesData.invites.filter((invite: any) => parseFloat(invite.balance) >= 1000);
+            if (balance >= 3000 && primeInvites.length >= 120) {
               level = "Prime";
             }
 
             setUserLevel(level);
           }
         } catch (error) {
-          console.error("获取用户等级失败:", error);
+          console.error("Failed to obtain user level:", error);
         }
       }
     };
@@ -227,7 +217,6 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   }, [address]);
 
   useEffect(() => {
-    // 检查当前用户是否已经接受了这个任务
     if (task && address) {
       const userAccepted = task.participants.some(p => p.address === address);
       setIsAccepted(userAccepted);
@@ -241,7 +230,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         const isEnded = isTaskExpired || completedCount >= taskCount;
         const hasRemaining = completedCount < parseInt(task.taskCount);
 
-        console.log("检查赎回条件:", {
+        console.log("Check redemption conditions:", {
           isCreator,
           isEnded,
           hasRemaining,
@@ -290,7 +279,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     };
 
     calculateTimeRemaining();
-    const timer = setInterval(calculateTimeRemaining, 60000); // 每分钟更新一次
+    const timer = setInterval(calculateTimeRemaining, 60000);
 
     return () => clearInterval(timer);
   }, [task]);
@@ -298,7 +287,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const router = useRouter();
   const handleAcceptTask = async () => {
     if (!address) {
-      notification.error("请先连接钱包");
+      notification.error("Please connect the wallet first");
       return;
     }
 
@@ -313,35 +302,34 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
 
       if (response.ok) {
         setIsAccepted(true);
-        notification.success("任务接受成功");
-        // 重新获取任务详情以更新参与者列表
+        notification.success("Task accepted successfully");
+
         await fetchTask();
-        // 跳转到"我的任务"页面
+
         router.push("/task/my-tasks");
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.message || "接受任务失败");
+        throw new Error(errorData.message || "Failed to accept the task");
       }
     } catch (error) {
-      console.error("接受任务失败:", error);
-      notification.error("接受任务失败");
+      console.error("Failed to accept the task:", error);
+      notification.error("Failed to accept the task");
     }
   };
 
   const handleWithdraw = async () => {
     if (!task?.onChainTaskId) {
-      notification.error("链上任务ID不存在");
+      notification.error("The task ID on the chain does not exist");
       return;
     }
 
     if (!taskRewardContract || !walletClient || !publicClient) {
-      notification.error("合约或钱包未连接");
+      notification.error("The contract or wallet is not connected");
       return;
     }
 
     setIsWithdrawing(true);
     try {
-      // 先获取已领取的奖励金额
       const claimedAmount = await publicClient.readContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
@@ -349,9 +337,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         args: [BigInt(task.onChainTaskId)],
       });
 
-      // 打印调试信息
-      // 添加在这里，在模拟交易之前
-      console.log("提现前数据:", {
+      console.log("Pre-withdrawal data:", {
         taskId: task.onChainTaskId,
         reward: task.reward,
         taskCount: task.taskCount,
@@ -360,7 +346,6 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         claimedAmount: claimedAmount.toString(),
       });
 
-      // 模拟交易以检查是否会成功
       const { request } = await publicClient.simulateContract({
         account: address,
         address: taskRewardContract.address as `0x${string}`,
@@ -369,25 +354,23 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
         args: [BigInt(task.onChainTaskId)],
       });
 
-      // 执行实际交易
       const hash = await walletClient.writeContract(request);
-      notification.info("赎回交易已提交");
+      notification.info("Transaction submitted");
 
-      // 等待交易确认
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
       if (receipt.status === "success") {
-        notification.success("赎回成功");
-        // 刷新任务数据
+        notification.success("success");
+
         await fetchTask();
-        // 重新获取剩余奖励
+
         await fetchRemainingReward();
       } else {
-        throw new Error("交易失败");
+        throw new Error("Transaction failed");
       }
     } catch (error) {
-      console.error("赎回失败:", error);
-      notification.error("赎回失败: " + (error instanceof Error ? error.message : String(error)));
+      console.error("Redemption failed:", error);
+      notification.error("Redemption failed: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsWithdrawing(false);
     }
@@ -396,12 +379,10 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
   const canAcceptTask = () => {
     if (!task || !address) return false;
 
-    // 检查是否是自己发布的任务
     if (task.creatorAddress === address) {
       return false;
     }
 
-    // 检查任务是否已达到完成人数上限
     if (completedCount >= taskCount) {
       return false;
     }
@@ -410,10 +391,10 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
     const userLevelIndex = levelOrder.indexOf(userLevel);
     const taskLevelIndex = levelOrder.indexOf(task.participationType as LevelType);
 
-    console.log("用户等级:", userLevel);
-    console.log("任务等级:", task.participationType);
-    console.log("用户等级索引:", userLevelIndex);
-    console.log("任务等级索引:", taskLevelIndex);
+    console.log("userLevel:", userLevel);
+    console.log("TaskLevel:", task.participationType);
+    console.log("userLevelIndex:", userLevelIndex);
+    console.log("taskLevelIndex:", taskLevelIndex);
 
     return userLevelIndex >= taskLevelIndex;
   };
@@ -427,8 +408,8 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
       </div>
     );
   }
-  if (error) return <div className="p-4">错误: {error}</div>;
-  if (!task) return <div className="p-4">未找到任务</div>;
+  if (error) return <div className="p-4">Error: {error}</div>;
+  if (!task) return <div className="p-4">Task not found</div>;
 
   return (
     <div className="bg-black text-white p-4 sm:p-6 mt-4 sm:mt-6">
@@ -437,7 +418,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
           <ArrowLeftIcon className="h-6 w-6 text-white hover:text-primary" />
         </Link>
         <div className="flex flex-col lg:flex-row">
-          {/* 左侧：任务详情 */}
+          
           <div className="w-full lg:w-3/5 lg:pr-6 mb-6 lg:mb-0">
             <div className="border border-[#424242] bg-base-400  rounded-lg p-4 sm:p-6">
               <div className="flex items-center mb-4 sm:mb-6">
@@ -455,11 +436,10 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   </h1>
                   <div className="flex items-center mt-1">
                     <p className="text-sm sm:text-base text-gray-400">
-                      由{" "}
+                      Create by{" "}
                       {task.creatorAddress
                         ? `${task.creatorAddress.slice(0, 6)}...${task.creatorAddress.slice(-4)}`
-                        : "未知创建者"}{" "}
-                      创建
+                        : "Unknown creator"}{" "}
                     </p>
                     <div className="flex gap-3 ml-4">
                       {task.twitterAccount && (
@@ -469,7 +449,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                           onClick={e => {
                             if ((e.target as HTMLElement).tagName !== "svg") {
                               navigator.clipboard.writeText(task.twitterAccount || "");
-                              notification.success("已复制 Twitter 账号");
+                              notification.success("Copied");
                             }
                           }}
                         >
@@ -483,7 +463,7 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                           onClick={e => {
                             if ((e.target as HTMLElement).tagName !== "svg") {
                               navigator.clipboard.writeText(task.telegramAccount || "");
-                              notification.success("已复制 Telegram 账号");
+                              notification.success("Copied");
                             }
                           }}
                         >
@@ -496,12 +476,12 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
               </div>
               <div className="mb-6">
                 <p className="text-sm text-gray-400 mb-2">
-                  任务进度: {completedCount} / {taskCount}
+                  Task Progress: {completedCount} / {taskCount}
                 </p>
                 <progress
                   className="progress progress-primary w-full"
                   value={completedCount}
-                  max={taskCount || 1} // 使用 1 作为默认值，避免除以零的错误
+                  max={taskCount || 1}
                 ></progress>
               </div>
               <div className="mb-4 sm:mb-6">
@@ -598,16 +578,16 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                 disabled={isTaskExpired || isAccepted || !canAcceptTask()}
               >
                 {isTaskExpired
-                  ? "已结束"
+                  ? "Ended"
                   : isAccepted
-                  ? "已接受"
+                  ? "Accepted"
                   : task.creatorAddress === address
-                  ? "不能接受自己发布的任务"
+                  ? "Unable to accept one's own tasks"
                   : completedCount >= taskCount
-                  ? "任务已结束"
+                  ? "Task ended"
                   : canAcceptTask()
-                  ? "接受任务"
-                  : `您的等级（${userLevel}）不足，需要${task.participationType}等级或以上才能接受此任务`}
+                  ? "Accept task"
+                  : `Level ${task.participationType} is required to accept this task`}
               </button>
               {canWithdraw && (
                 <button
@@ -622,17 +602,16 @@ const TaskDetailPage = ({ params }: { params: { taskId: string } }) => {
                   {isWithdrawing ? (
                     <div className="flex items-center justify-center">
                       <Loading size="sm" className="mr-2" />
-                      赎回中...
+                      Redeeming...
                     </div>
                   ) : (
-                    `赎回剩余奖励 (${remainingReward} USDT)`
+                    `Redeem (${remainingReward} USDT)`
                   )}
                 </button>
               )}
             </div>
           </div>
 
-          {/* 右侧：参与者列表 */}
           <div className="w-full lg:w-2/5">
             <div className="border rounded-xl border-[#424242] bg-base-400 p-4 sm:p-6">
               <h2 className="text-lg sm:text-xl font-semibold mb-4">Participants</h2>

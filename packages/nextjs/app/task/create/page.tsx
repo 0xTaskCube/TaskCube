@@ -81,11 +81,11 @@ const CreateTaskPage = () => {
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
-    if (!taskData.title.trim()) newErrors.title = "请输入正确的标题";
-    if (!taskData.description.trim()) newErrors.description = "请输入任务描述";
-    if (!taskData.startDate) newErrors.startDate = "请选择开始日期";
-    if (!taskData.endDate) newErrors.endDate = "请选择结束日期";
-    if (!taskData.reward.trim()) newErrors.reward = "请输入奖金金额";
+    if (!taskData.title.trim()) newErrors.title = "Please enter a title";
+    if (!taskData.description.trim()) newErrors.description = "Please enter a task description";
+    if (!taskData.startDate) newErrors.startDate = "Please select a start date";
+    if (!taskData.endDate) newErrors.endDate = "Please select a end date";
+    if (!taskData.reward.trim()) newErrors.reward = "Please enter bonus amount";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -94,12 +94,11 @@ const CreateTaskPage = () => {
   const { data: taskRewardContract } = useScaffoldContract({
     contractName: "TaskReward",
   });
-  // 在 handleSubmit 函数中修改，在发送请求前处理时间
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isConnected) {
-      notification.error("请先连接钱包");
+      notification.error("Please connect the wallet first");
       return;
     }
 
@@ -108,17 +107,15 @@ const CreateTaskPage = () => {
     }
 
     if (!taskRewardContract || !walletClient || !publicClient || !address) {
-      notification.error("合约未准备就绪");
+      notification.error("Contract is not ready");
       return;
     }
 
     setIsLoading(true);
     try {
-      // 计算总奖励金额（任务数量 * 每个任务的奖励）
       const totalRewardAmount = parseUnits((Number(taskData.reward) * Number(taskData.taskCount)).toString(), 6);
-      const totalParticipants = BigInt(taskData.taskCount); // 转换为 BigInt
+      const totalParticipants = BigInt(taskData.taskCount);
 
-      // 1. 批准 USDT 转账
       const { request: approveRequest } = await publicClient.simulateContract({
         account: address,
         address: USDT_ADDRESS as `0x${string}`,
@@ -127,12 +124,11 @@ const CreateTaskPage = () => {
         args: [taskRewardContract.address, totalRewardAmount],
       });
 
-      notification.info("请在钱包中确认USDT授权");
+      notification.info("Please authorize USDT");
       const approveTx = await walletClient.writeContract(approveRequest);
       await publicClient.waitForTransactionReceipt({ hash: approveTx });
 
-      // 2. 创建任务并存入 USDT
-      notification.info("请在钱包中确认创建任务");
+      notification.info("Confirm task creation");
       const { request: createTaskRequest } = await publicClient.simulateContract({
         account: address,
         address: taskRewardContract.address,
@@ -144,7 +140,7 @@ const CreateTaskPage = () => {
       const createTaskTx = await walletClient.writeContract(createTaskRequest);
       const receipt = await publicClient.waitForTransactionReceipt({ hash: createTaskTx });
 
-      // 3. 从事件中获取 taskId
+      // taskId
       const taskCreatedEvent = receipt.logs
         .map(log => {
           try {
@@ -159,22 +155,14 @@ const CreateTaskPage = () => {
         })
         .find(event => event?.eventName === "TaskCreated");
 
-      // 添加日志
-      console.log("TaskCreated 事件:", taskCreatedEvent);
-      console.log("事件参数:", taskCreatedEvent?.args);
-
       const onChainTaskId = taskCreatedEvent?.args?.taskId;
 
-      // 确保 onChainTaskId 是有效的
       if (onChainTaskId === undefined) {
-        throw new Error("无法获取链上任务ID");
+        throw new Error("Unable to obtain on-chain task ID");
       }
 
-      // 转换为字符串时保留原始值
       const onChainTaskIdString = onChainTaskId.toString();
-      console.log("准备保存的链上任务ID:", onChainTaskIdString);
 
-      // 4. 创建任务记录
       const now = new Date();
       const endTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
@@ -185,7 +173,7 @@ const CreateTaskPage = () => {
         },
         body: JSON.stringify({
           ...taskData,
-          onChainTaskId: onChainTaskId?.toString(), 
+          onChainTaskId: onChainTaskId?.toString(),
           startDate: now.toISOString(),
           endDate: endTime.toISOString(),
           creatorAddress: address,
@@ -195,14 +183,14 @@ const CreateTaskPage = () => {
 
       const data = await response.json();
       if (response.ok) {
-        notification.success("任务发布成功");
+        notification.success("Published successfully");
         router.push("/task/my-tasks");
       } else {
-        notification.error(data.error || "发布失败");
+        notification.error(data.error || "Publishing failed");
       }
     } catch (error) {
-      console.error("发布任务失败:", error);
-      notification.error("发布失败: " + (error instanceof Error ? error.message : String(error)));
+      console.error("Publishing failed:", error);
+      notification.error("Publishing failed: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -211,10 +199,9 @@ const CreateTaskPage = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setTaskData(prev => ({ ...prev, [name]: value }));
-    // 清除对应字段的错误
+
     setErrors(prev => ({ ...prev, [name]: "" }));
 
-    // 计算总奖金
     if (name === "reward" || name === "taskCount") {
       calculateTotalReward(
         name === "reward" ? value : taskData.reward,
@@ -265,11 +252,11 @@ const CreateTaskPage = () => {
             <Link href="/task" className="inline-block mb-6">
               <ArrowLeftIcon className="h-6 w-6 text-white hover:text-primary" />
             </Link>
-            <h1 className="text-3xl font-bold mb-6">发布新任务</h1>
+            <h1 className="text-3xl font-bold mb-6">Create task</h1>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-400 mb-2">
-                  任务标题
+                  Task title
                 </label>
                 <input
                   type="text"
@@ -286,7 +273,7 @@ const CreateTaskPage = () => {
 
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-400 mb-2">
-                  任务描述
+                  Task description
                 </label>
                 <textarea
                   id="description"
@@ -316,27 +303,27 @@ const CreateTaskPage = () => {
                     }}
                     sx={{
                       "& .MuiInputBase-input": {
-                        color: "white", // 输入框文字颜色
+                        color: "white",
                       },
                       "& .MuiInputLabel-root": {
-                        color: "#9ca3af", // 未选中时的标签颜色 (text-gray-400)
+                        color: "#9ca3af",
                       },
                       "& .MuiInputLabel-root.Mui-focused": {
-                        color: "#0d9488", // 选中时的标签颜色
+                        color: "#0d9488",
                       },
                       "& .MuiOutlinedInput-root": {
                         "& fieldset": {
-                          borderColor: "#424242", // 默认边框颜色 (border-gray-700)
+                          borderColor: "#424242",
                         },
                         "&:hover fieldset": {
-                          borderColor: "#4b5563", // 悬停时的边框颜色 (border-gray-600)
+                          borderColor: "#4b5563",
                         },
                         "&.Mui-focused fieldset": {
-                          borderColor: "#0d9488", // 聚焦时的边框颜色
+                          borderColor: "#0d9488",
                         },
                       },
                       "& .MuiIconButton-root": {
-                        color: "white", // 日历图标颜色
+                        color: "white",
                       },
                     }}
                   />
@@ -355,37 +342,39 @@ const CreateTaskPage = () => {
                     }}
                     sx={{
                       "& .MuiInputBase-input": {
-                        color: "white", // 输入框文字颜色
+                        color: "white",
                       },
                       "& .MuiInputLabel-root": {
-                        color: "#9ca3af", // 未选中时的标签颜色 (text-gray-400)
+                        color: "#9ca3af",
                       },
                       "& .MuiInputLabel-root.Mui-focused": {
-                        color: "#0d9488", // 选中时的标签颜色
+                        color: "#0d9488",
                       },
                       "& .MuiOutlinedInput-root": {
                         "& fieldset": {
-                          borderColor: "#374151", // 默认边框颜色 (border-gray-700)
+                          borderColor: "#374151",
                         },
                         "&:hover fieldset": {
-                          borderColor: "#4b5563", // 悬停时的边框颜色 (border-gray-600)
+                          borderColor: "#4b5563",
                         },
                         "&.Mui-focused fieldset": {
-                          borderColor: "#0d9488", // 聚焦时的边框颜色
+                          borderColor: "#0d9488",
                         },
                       },
                       "& .MuiIconButton-root": {
-                        color: "white", // 日历图标颜色
+                        color: "white",
                       },
                     }}
                   />
                 </div>
               </div>
 
-              {duration.days > 0 ? <p className="text-sm text-gray-400">此任务将持续 {duration.days} 天</p> : null}
+              {duration.days > 0 ? (
+                <p className="text-sm text-gray-400">The task will continue {duration.days} days</p>
+              ) : null}
               <div className="mb-4">
                 <label htmlFor="taskType" className="block text-sm font-medium text-gray-400 mb-2">
-                  任务类型
+                  Task type
                 </label>
                 <div className="relative">
                   <button
@@ -393,7 +382,7 @@ const CreateTaskPage = () => {
                     className="w-full bg-black text-white p-2 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary flex justify-between items-center"
                     onClick={toggleTaskType}
                   >
-                    <span>{taskData.taskType === "individual" ? "个人任务" : "团队任务"}</span>
+                    <span>{taskData.taskType === "individual" ? "Personal" : "Team"}</span>
                     <ChevronDownIcon className="h-5 w-5" />
                   </button>
                   {isTaskTypeOpen && (
@@ -402,10 +391,10 @@ const CreateTaskPage = () => {
                         className="p-2 hover:bg-gray-700 cursor-pointer"
                         onClick={() => selectTaskType("individual")}
                       >
-                        个人任务
+                        Personal
                       </div>
                       <div className="p-2 hover:bg-gray-700 cursor-pointer" onClick={() => selectTaskType("team")}>
-                        团队任务
+                        Team
                       </div>
                     </div>
                   )}
@@ -414,7 +403,7 @@ const CreateTaskPage = () => {
 
               <div className="mb-4">
                 <label htmlFor="participationType" className="block text-sm font-medium text-gray-400 mb-2">
-                  参与资格
+                  Task level
                 </label>
                 <div className="relative">
                   <button
@@ -444,7 +433,7 @@ const CreateTaskPage = () => {
               </div>
               <div>
                 <label htmlFor="taskCount" className="block text-sm font-medium text-gray-400 mb-2">
-                  任务数量
+                  Task Count
                 </label>
                 <input
                   type="number"
@@ -460,7 +449,7 @@ const CreateTaskPage = () => {
               </div>
               <div>
                 <label htmlFor="reward" className="block text-sm font-medium text-gray-400 mb-2">
-                  每份奖金
+                  Task Amount
                 </label>
                 <div className="relative flex items-center">
                   <Image
@@ -487,12 +476,12 @@ const CreateTaskPage = () => {
                   (participationOptions.find(option => option.value === taskData.participationType)?.minReward ||
                     0) && (
                   <p className="text-red-500 text-sm mt-1">
-                    最低奖金金额为{" "}
-                    {participationOptions.find(option => option.value === taskData.participationType)?.minReward} USDT
+                    Min: {participationOptions.find(option => option.value === taskData.participationType)?.minReward}{" "}
+                    USDT
                   </p>
                 )}
                 {taskData.reward && taskData.taskCount && (
-                  <p className="text-sm text-gray-400 mt-2">任务的总奖金是：{totalReward} USDT</p>
+                  <p className="text-sm text-gray-400 mt-2">Total reward required:{totalReward} USDT</p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -500,7 +489,7 @@ const CreateTaskPage = () => {
                   <label className="block text-sm font-medium text-white mb-2">
                     <div className="flex items-center gap-2">
                       <FaXTwitter className="text-xl" />
-                      <span>Twitter账号</span>
+                      <span>Twitter Account</span>
                     </div>
                   </label>
                   <input
@@ -516,7 +505,7 @@ const CreateTaskPage = () => {
                   <label className="block text-sm font-medium text-white mb-2">
                     <div className="flex items-center gap-2">
                       <FaPaperPlane className="text-xl" />
-                      <span>Telegram账号</span>
+                      <span>Telegram Account</span>
                     </div>
                   </label>
                   <input
@@ -540,10 +529,10 @@ const CreateTaskPage = () => {
                   {isLoading ? (
                     <div className="flex items-center justify-center">
                       <Loading size="sm" color="primary" className="mr-2" />
-                      发布中...
+                      Creating...
                     </div>
                   ) : (
-                    "发布任务"
+                    "Create Task"
                   )}
                 </button>
               )}

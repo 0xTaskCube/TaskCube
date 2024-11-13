@@ -11,7 +11,7 @@ interface HighchartsTreegraphProps {
   data: any[];
 }
 
-// 初始化 Highcharts 模块
+
 if (typeof Highcharts === "object") {
   HC_treemap(Highcharts);
   HC_treegraph(Highcharts);
@@ -21,11 +21,11 @@ if (typeof Highcharts === "object") {
 const shortenAddress = (address: string) => {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 };
-// 格式化数据为 Highcharts 支持的树形结构
+
 const formatTreeData = (data: any) => {
   const formattedData: any[] = [];
   const isMobile = window.innerWidth <= 768;
-  // 添加邀请者作为根节点
+ 
   formattedData.push({
     id: "root",
     parent: "",
@@ -33,7 +33,7 @@ const formatTreeData = (data: any) => {
     wallet: data.inviter,
   });
 
-  // 递归格式化数据
+ 
   const recursiveFormat = (children: any[], parentId: string) => {
     if (Array.isArray(children)) {
       children.forEach(child => {
@@ -55,7 +55,7 @@ const formatTreeData = (data: any) => {
   return formattedData;
 };
 
-// Highcharts 图表组件
+
 const HighchartsTreegraph: React.FC<HighchartsTreegraphProps> = ({ data }) => {
   const chartComponentRef = React.useRef<HighchartsReact.RefObject>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -65,7 +65,7 @@ const HighchartsTreegraph: React.FC<HighchartsTreegraphProps> = ({ data }) => {
       setIsMobile(window.innerWidth <= 768);
     };
 
-    handleResize(); // 初始化时检查
+    handleResize(); 
     window.addEventListener("resize", handleResize);
 
     return () => {
@@ -73,7 +73,7 @@ const HighchartsTreegraph: React.FC<HighchartsTreegraphProps> = ({ data }) => {
     };
   }, []);
 
-  // Highcharts 图表配置
+  
   const options: Highcharts.Options = {
     title: {
       text: "Display up to two layers",

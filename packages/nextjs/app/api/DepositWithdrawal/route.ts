@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const { userAddress, amount, type, contractRequestId } = await request.json();
 
     if (!userAddress || !amount || !type) {
-      return NextResponse.json({ success: false, error: "缺少必要的字段" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Required fields are missing" }, { status: 400 });
     }
 
     const client = await clientPromise;
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
       transaction: { ...transaction, _id: result.insertedId.toString() },
     });
   } catch (error) {
-    console.error("交易记录失败:", error);
-    return NextResponse.json({ success: false, error: "交易记录失败" }, { status: 500 });
+    console.error("Transaction record failed:", error);
+    return NextResponse.json({ success: false, error: "Transaction record failed" }, { status: 500 });
   }
 }
 
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   const action = searchParams.get("action");
 
   if (!userAddress) {
-    return NextResponse.json({ success: false, error: "缺少用户地址" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Missing user address" }, { status: 400 });
   }
 
   try {
@@ -61,7 +61,6 @@ export async function GET(request: Request) {
     const collection = db.collection("transactions");
 
     if (action === "getTransactions") {
-      // 获取交易记录
       const transactions = await collection.find({ userAddress }).sort({ date: -1 }).limit(50).toArray();
 
       return NextResponse.json({
@@ -74,7 +73,6 @@ export async function GET(request: Request) {
         })),
       });
     } else if (action === "getBalance") {
-      // 获取所有存款
       const deposits = await collection
         .find({
           userAddress,
@@ -83,7 +81,6 @@ export async function GET(request: Request) {
         })
         .toArray();
 
-      // 获取待处理的提现
       const pendingWithdrawals = await collection
         .find({
           userAddress,
@@ -92,7 +89,6 @@ export async function GET(request: Request) {
         })
         .toArray();
 
-      // 获取已执行的提现
       const executedWithdrawals = await collection
         .find({
           userAddress,
@@ -117,10 +113,10 @@ export async function GET(request: Request) {
         availableBalance: availableBalance.toFixed(6),
       });
     } else {
-      return NextResponse.json({ success: false, error: "无效的操作" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Invalid operation" }, { status: 400 });
     }
   } catch (error) {
-    console.error("操作失败:", error);
-    return NextResponse.json({ success: false, error: "操作失败" }, { status: 500 });
+    console.error("Operation failed:", error);
+    return NextResponse.json({ success: false, error: "Operation failed" }, { status: 500 });
   }
 }

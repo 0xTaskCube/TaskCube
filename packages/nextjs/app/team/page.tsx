@@ -6,7 +6,6 @@ import { Loading } from "../../components/ui/Loading";
 import ParticlesComponent from "../../components/ui/ParticlesComponent";
 import { useAccount } from "wagmi";
 
-// 动态引入 HighchartsTreegraph 组件
 const HighchartsTreegraph = dynamic(() => import("./_components/HighchartsTreegraph"), { ssr: false });
 
 const TeamPage: React.FC = () => {

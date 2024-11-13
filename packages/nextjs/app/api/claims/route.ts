@@ -17,12 +17,11 @@ export async function POST(request: NextRequest) {
       relatedTasks,
     } = body;
 
-    // 验证必需字段
     if (!userAddress || !amount || !bountyId || !contractRequestId || !taskId) {
       return NextResponse.json(
         {
           success: false,
-          message: "缺少必需字段",
+          message: "Missing required field",
           details: {
             userAddress: !userAddress,
             amount: !amount,
@@ -38,14 +37,13 @@ export async function POST(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    // 创建新的领取记录
     const result = await db.collection("claims").insertOne({
       userAddress,
       amount,
       bountyId,
       taskId,
       contractRequestId,
-      status: status || "executed", // 默认为 executed
+      status: status || "executed",
       transactionHash,
       executeTransactionHash,
       type: type || "task",
@@ -61,22 +59,22 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.acknowledged) {
-      throw new Error("保存记录失败");
+      throw new Error("Failed to save record");
     }
 
     return NextResponse.json({
       success: true,
-      message: "领取记录已保存",
+      message: "Collection record has been saved",
       data: {
         id: result.insertedId,
       },
     });
   } catch (error) {
-    console.error("保存领取记录失败:", error);
+    console.error("Failed to save collection record:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "保存领取记录失败",
+        message: "Failed to save collection record",
         error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
@@ -93,27 +91,22 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    // 构建查询条件
     const query: any = {};
     if (userAddress) query.userAddress = userAddress;
     if (status) query.status = status;
 
-    console.log("Claims 查询条件:", query);
-
     const claims = await db.collection("claims").find(query).sort({ createdAt: -1 }).toArray();
-
-    console.log(`找到 ${claims.length} 条记录`);
 
     return NextResponse.json({
       success: true,
       data: claims,
     });
   } catch (error) {
-    console.error("获取领取记录失败:", error);
+    console.error("Failed to obtain collection record:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "获取领取记录失败",
+        message: "Failed to obtain collection record",
         error: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },

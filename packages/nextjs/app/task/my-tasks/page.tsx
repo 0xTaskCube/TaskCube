@@ -38,11 +38,10 @@ const MyTasksPage = () => {
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    console.log("正在获取任务，用户地址:", address);
 
     try {
       if (!address) {
-        throw new Error("用户地址未定义");
+        throw new Error("User address is undefined");
       }
 
       const response = await fetch(`/api/task?address=${address}`);
@@ -51,10 +50,9 @@ const MyTasksPage = () => {
       }
 
       const data = await response.json();
-      console.log("API 返回的原始数据:", data);
 
       if (!data.publishedTasks || !data.acceptedTasks) {
-        console.warn("API 返回的数据格式不正确:", data);
+        console.warn("API The returned data format is incorrect:", data);
       }
 
       const processTask = (task: any) => ({
@@ -70,66 +68,55 @@ const MyTasksPage = () => {
       const processedPublishedTasks = (data.publishedTasks || []).map(processTask);
       const processedAcceptedTasks = (data.acceptedTasks || []).map(processTask);
 
-      console.log("处理后的已发布任务:", processedPublishedTasks);
-      console.log("处理后的已接受任务:", processedAcceptedTasks);
-
       setPublishedTasks(processedPublishedTasks);
       setAcceptedTasks(processedAcceptedTasks);
-
-      console.log("状态更新后的已发布任务数量:", processedPublishedTasks.length);
-      console.log("状态更新后的已接受任务数量:", processedAcceptedTasks.length);
     } catch (error) {
-      console.error("获取任务失败:", error);
-      setError(error instanceof Error ? error.message : "获取任务失败");
+      console.error("Failed to get task:", error);
+      setError(error instanceof Error ? error.message : "Failed to get task");
     } finally {
       setIsLoading(false);
     }
   }, [address]);
 
   useEffect(() => {
-    console.log("当前用户地址:", address);
+    console.log("User address:", address);
     if (address) {
       fetchTasks();
     } else {
-      console.log("用户未连接钱包");
+      console.log("User is not connected to wallet");
     }
   }, [address, fetchTasks]);
 
-  // 添加必要的 hooks
   const { data: taskRewardContract } = useScaffoldContract({
     contractName: "TaskReward",
   });
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
 
-  // 修改 handleApprove 函数
   const handleApprove = async (taskId: string, participantAddress: string | undefined) => {
     const operationId = `${taskId}-${participantAddress}`;
     if (approvingTask === operationId) return;
 
     if (!participantAddress) {
-      notification.error("无效的参与者地址");
+      notification.error("Invalid participant address");
       return;
     }
 
     if (!address) {
-      notification.error("请先连接钱包");
+      notification.error("Please connect the wallet");
       return;
     }
     setApprovingTask(operationId);
     try {
-      // 1. 先检查合约调用是否可行
       if (!taskRewardContract || !walletClient || !publicClient) {
-        throw new Error("合约或钱包客户端未初始化");
+        throw new Error("The contract or wallet client is not initialized");
       }
 
-      // 获取任务信息
       const task = publishedTasks.find(t => t.id === taskId);
       if (!task?.onChainTaskId) {
-        throw new Error("链上任务ID不存在");
+        throw new Error("The task ID on the chain does not exist");
       }
 
-      // 检查当前用户是否是任务创建者
       const onChainTask = (await publicClient.readContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
@@ -137,13 +124,11 @@ const MyTasksPage = () => {
         args: [BigInt(task.onChainTaskId)],
       })) as readonly [string, bigint, bigint, bigint, boolean];
 
-      // 确保当前用户是任务创建者
       const creator = onChainTask[0];
       if (creator.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("只有任务创建者可以批准完成");
+        throw new Error("Only the task creator can approve completion");
       }
 
-      // 2. 执行合约调用
       const { request } = await publicClient.simulateContract({
         address: taskRewardContract.address as `0x${string}`,
         abi: taskRewardContract.abi,
@@ -152,22 +137,19 @@ const MyTasksPage = () => {
         account: address,
       });
 
-      // 执行合约调用
       const hash = await walletClient.writeContract({
         ...request,
         account: address,
       });
 
-      notification.info("合约调用已提交，等待确认...");
+      notification.info("Confirming...");
 
-      // 等待交易确认
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
       if (receipt.status === "reverted") {
-        throw new Error("合约调用被回滚");
+        throw new Error("Contract call is rolled back");
       }
 
-      // 3. 只有在合约调用成功后，才更新后端数据库
       const response = await fetch(`/api/task`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -175,25 +157,25 @@ const MyTasksPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error("更新任务状态失败");
+        throw new Error("Failed to update task status");
       }
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.message || "更新任务状态失败");
+        throw new Error(data.message || "Failed to update task status");
       }
 
-      notification.success("任务已批准");
-      fetchTasks(); // 刷新任务列表
+      notification.success("Task approved");
+      fetchTasks();
     } catch (error) {
-      console.error("批准任务失败:", error);
-      notification.error("批准任务失败: " + (error instanceof Error ? error.message : String(error)));
+      console.error("Approval task failed:", error);
+      notification.error("Approval task failed: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 
   const handleReject = async (taskId: string, participantAddress: string | undefined) => {
     if (!participantAddress) {
-      notification.error("无效的参与者地址");
+      notification.error("Invalid participant address");
       return;
     }
     try {
@@ -206,33 +188,32 @@ const MyTasksPage = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          notification.success("任务已拒绝");
-          // 重置任务状态
+          notification.success("Task rejected");
+
           await fetch(`/api/task/resetTaskStatus`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ taskId, participantAddress }),
           });
-          // 重新获取任务列表
+
           fetchTasks();
         } else {
-          throw new Error(data.message || "拒绝任务失败");
+          throw new Error(data.message || "Reject task failed");
         }
       } else {
-        throw new Error("拒绝任务失败");
+        throw new Error("Reject task failed");
       }
     } catch (error) {
-      console.error("拒绝任务失败:", error);
-      notification.error("拒绝任务失败");
+      console.error("Reject task failed:", error);
+      notification.error("Reject task failed");
     }
   };
 
   const handleSubmit = async (taskId: string) => {
-    console.log("提交任务:", { taskId, address });
+    console.log("Submit task:", { taskId, address });
 
     if (!taskId || !address) {
-      console.error("缺少 taskId 或 address:", { taskId, address });
-      notification.error("提交失败：缺少必要信息");
+      notification.error("Submission failed: required information missing");
       return;
     }
 
@@ -244,17 +225,17 @@ const MyTasksPage = () => {
       });
 
       const data = await response.json();
-      console.log("服务器响应:", data);
+      console.log("Server response:", data);
 
       if (!response.ok) {
-        throw new Error(data.message || `HTTP 错误! 状态: ${response.status}`);
+        throw new Error(data.message || `HTTP Error! Status: ${response.status}`);
       }
 
-      notification.success(data.message || "任务已提交审核");
-      fetchTasks(); // 刷新任务列表
+      notification.success(data.message || "Submitted for review");
+      fetchTasks();
     } catch (error) {
-      console.error("提交任务失败:", error);
-      notification.error(error instanceof Error ? error.message : "提交任务失败");
+      console.error("Failed to submit task:", error);
+      notification.error(error instanceof Error ? error.message : "Failed to submit task");
     }
   };
 
@@ -264,7 +245,6 @@ const MyTasksPage = () => {
     const [participantStatus, setParticipantStatus] = useState<string>("");
 
     useEffect(() => {
-      // 检查当前用户是否已经提交了这个任务，并获取参与者状态
       const currentParticipant = task.participants.find(p => p.address === address);
       setIsSubmitted(currentParticipant?.status === "submitted" || currentParticipant?.status === "approved");
       setParticipantStatus(currentParticipant?.status || "");
@@ -273,9 +253,9 @@ const MyTasksPage = () => {
     const isPublishedTask = task.creatorAddress === address;
     // const renderStatus = () => {
     //   if (task.status === "completed") {
-    //     return "已完成";
+    //     return "Completed";
     //   } else if (task.status === "pending_approval") {
-    //     return "等待审核";
+    //     return "Waiting for review";
     //   } else {
     //     const participant = task.participants.find(p => p.address === address);
     //     return participant ? participant.status : task.status;
@@ -283,12 +263,14 @@ const MyTasksPage = () => {
     // };
     return (
       <div className="border border-[#424242] bg-base-400 p-4 rounded-lg mb-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-8">
           <div>
             <div className="flex items-center">
               <span className="text-white text-lg font-semibold mr-4">{task.title}</span>
               <div className="flex items-center">
-                <span className="text-gray-400 text-sm">截止日期: {new Date(task.endDate).toLocaleDateString()}</span>
+                <span className="text-gray-400 text-sm">
+                  Expiration date: {new Date(task.endDate).toLocaleDateString()}
+                </span>
                 <Link href={`/task/${task.id}`} className="ml-2">
                   <ArrowTopRightOnSquareIcon className="h-4 w-4 text-gray-400 hover:text-primary cursor-pointer" />
                 </Link>
@@ -308,7 +290,7 @@ const MyTasksPage = () => {
         </div>
         {isPublishedTask ? (
           <div>
-            <div className="mb-2 text-sm">接受此任务的用户：</div>
+            <div className="mb-2 text-sm">User：</div>
             <div className="flex flex-wrap gap-2">
               {task.participants && task.participants.length > 0 ? (
                 task.participants.map((participant, index) => (
@@ -328,9 +310,9 @@ const MyTasksPage = () => {
                               className="bg-primary hover:bg-opacity-80 text-white px-2 py-1 rounded-lg text-xs mr-1"
                             >
                               {approvingTask === `${task.id}-${participant.address}` ? (
-                                <span className="flex items-center">批准中...</span>
+                                <span className="flex items-center">Approving...</span>
                               ) : (
-                                "批准"
+                                "Approve"
                               )}
                             </button>
                             <button
@@ -338,31 +320,31 @@ const MyTasksPage = () => {
                               disabled={approvingTask === `${task.id}-${participant.address}`}
                               className="bg-red-500 hover:bg-opacity-80 text-white px-2 py-1 rounded-lg text-xs"
                             >
-                              拒绝
+                              Reject
                             </button>
                           </div>
                         ) : participant.status === "approved" ? (
-                          <span className="ml-2 text-xs text-green-500">已批准</span>
+                          <span className="ml-2 text-xs text-green-500">Approved</span>
                         ) : participant.status === "rejected" ? (
-                          <span className="ml-2 text-xs text-yellow-500">待审核</span>
+                          <span className="ml-2 text-xs text-yellow-500">Pending</span>
                         ) : (
-                          <span className="ml-2 text-xs text-yellow-500">等待提交</span>
+                          <span className="ml-2 text-xs text-yellow-500">submissioning</span>
                         )}
                       </>
                     ) : (
-                      <span className="text-gray-400">无效地址</span>
+                      <span className="text-gray-400">Invalid address</span>
                     )}
                   </div>
                 ))
               ) : (
-                <p className="text-gray-400">暂无用户接受此任务</p>
+                <p className="text-gray-400">No user has accepted this task yet</p>
               )}
             </div>
           </div>
         ) : (
           <div>
             <div className="flex items-center mb-2">
-              <span className="mr-2">发布者：</span>
+              <span className="mr-2">Creator:</span>
               <BlockieAvatar address={task.creatorAddress} size={24} />
               <span className="ml-2 text-sm">
                 {task.creatorAddress.slice(0, 6)}...{task.creatorAddress.slice(-4)}
@@ -376,12 +358,12 @@ const MyTasksPage = () => {
               disabled={participantStatus === "approved"}
             >
               {participantStatus === "approved"
-                ? "已完成"
+                ? "Approved"
                 : participantStatus === "rejected"
-                ? "提交审核"
+                ? "Submit Task"
                 : isSubmitted
-                ? "已提交"
-                : "提交审核"}
+                ? "Submited"
+                : "Submit Task"}
             </button>
           </div>
         )}
@@ -390,7 +372,6 @@ const MyTasksPage = () => {
   };
 
   const currentTasks = taskType === "published" ? publishedTasks : acceptedTasks;
-  console.log("当前显示的任务:", currentTasks);
 
   return (
     <div className="bg-black text-white p-4 sm:p-6 mt-4 sm:mt-6">
@@ -402,7 +383,7 @@ const MyTasksPage = () => {
         </div>
 
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">我的任务</h1>
+          <h1 className="text-2xl font-bold">My task</h1>
           <div className="flex space-x-2">
             <button
               onClick={() => setTaskType("published")}
@@ -410,7 +391,7 @@ const MyTasksPage = () => {
                 taskType === "published" ? "bg-primary text-white" : "bg-custom-hover text-gray-300"
               }`}
             >
-              已发布的任务
+              Created tasks
             </button>
             <button
               onClick={() => setTaskType("accepted")}
@@ -418,12 +399,10 @@ const MyTasksPage = () => {
                 taskType === "accepted" ? "bg-primary text-white" : "bg-custom-hover text-gray-300"
               }`}
             >
-              已接受的任务
+              Accepted tasks
             </button>
           </div>
         </div>
-
-        {/* <div className="mb-4 text-sm text-gray-400">{taskType === "published" ? "已发布的任务" : "已接受的任务"}</div> */}
 
         {isLoading ? (
           <div className="flex justify-center items-center min-h-[200px]">
@@ -434,7 +413,7 @@ const MyTasksPage = () => {
         ) : currentTasks.length > 0 ? (
           currentTasks.map(task => <TaskItem key={task.id} task={task} />)
         ) : (
-          <div className="flex justify-center items-center min-h-[200px]">暂无任务</div>
+          <div className="flex justify-center items-center min-h-[200px]">No tasks yet</div>
         )}
       </div>
     </div>

@@ -28,7 +28,6 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    // 1. 获取奖励分配记录
     const distributions = await db
       .collection<RewardDistribution>("rewardDistributions")
       .find({
@@ -36,39 +35,33 @@ export async function GET(request: NextRequest) {
       })
       .toArray();
 
-    // 2. 获取已领取的记录
     const claims = await db.collection("claims").find({ userAddress: address }).toArray();
 
     const totalClaimedAmount = claims.reduce((sum, claim) => sum + Number(claim.amount), 0);
 
-    // 3. 计算各类奖励
     let totalAvailableReward = 0;
     const taskBalances = new Map<string, number>();
 
     distributions.forEach(dist => {
-      // 计算该用户在每个任务中的总奖励
       let taskReward = 0;
 
-      // 完成任务的奖励
       if (dist.participantAddress === address) {
         taskReward += dist.userReward;
-        // 记录任务奖励
+
         const currentTaskBalance = taskBalances.get(dist.taskId.toString()) || 0;
         taskBalances.set(dist.taskId.toString(), currentTaskBalance + dist.userReward);
       }
 
-      // 直接邀请奖励
       if (dist.directInviterAddress === address) {
         taskReward += dist.directInviterReward;
-        // 记录邀请奖励到 taskId = 0
+
         const currentInviteBalance = taskBalances.get("0") || 0;
         taskBalances.set("0", currentInviteBalance + dist.directInviterReward);
       }
 
-      // 间接邀请奖励
       if (dist.indirectInviterAddress === address) {
         taskReward += dist.indirectInviterReward;
-        // 记录邀请奖励到 taskId = 0
+
         const currentInviteBalance = taskBalances.get("0") || 0;
         taskBalances.set("0", currentInviteBalance + dist.indirectInviterReward);
       }
@@ -76,10 +69,9 @@ export async function GET(request: NextRequest) {
       totalAvailableReward += taskReward;
     });
 
-    // 4. 计算最终可用余额
     const availableBounty = Math.max(0, totalAvailableReward - totalClaimedAmount);
 
-    console.log("奖励计算结果:", {
+    console.log("Reward calculation results:", {
       address,
       totalAvailableReward,
       totalClaimedAmount,
@@ -87,7 +79,6 @@ export async function GET(request: NextRequest) {
       taskBalances: Object.fromEntries(taskBalances),
     });
 
-    // 如果请求特定任务的余额
     if (taskId) {
       const taskBalance = taskBalances.get(taskId) || 0;
       return NextResponse.json({
@@ -108,11 +99,11 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("获取奖励失败:", error);
+    console.error("Failed to obtain rewards:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "获取奖励失败",
+        message: "Failed to obtain rewards",
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },

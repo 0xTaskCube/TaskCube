@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Loading } from "./Loading";
 import { decodeEventLog, parseUnits } from "viem";
+import { formatUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
 import { useScaffoldContract } from "~~/hooks/scaffold-eth";
@@ -12,7 +13,7 @@ import { notification } from "~~/utils/scaffold-eth";
 interface ClaimModalProps {
   isOpen: boolean;
   onClose: () => void;
-  availableAmount: string; // 从父组件传入的余额
+  availableAmount: string;
   bountyId: string;
   type?: "task" | "invite";
 }
@@ -24,7 +25,6 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
   bountyId,
   type = "task",
 }) => {
-  // 在这里添加格式化函数
   const formatAmount = (amount: string | number) => {
     const num = Number(amount);
     return isNaN(num) ? "0.00" : num.toFixed(2);
@@ -34,80 +34,98 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
+  const [gasPrice, setGasPrice] = useState<bigint | null>(null);
 
   const { data: taskRewardContract, isLoading: isContractLoading } = useScaffoldContract({
     contractName: "TaskReward",
     walletClient,
   });
 
-  // 添加预热效果
+  useEffect(() => {
+    const fetchGasPrice = async () => {
+      if (!publicClient) return;
+      try {
+        const fetchedGasPrice = await publicClient.getGasPrice();
+        setGasPrice(fetchedGasPrice);
+      } catch (error) {
+        console.error("Error fetching gas price:", error);
+      }
+    };
+
+    fetchGasPrice();
+    const interval = setInterval(fetchGasPrice, 60000);
+    return () => clearInterval(interval);
+  }, [publicClient]);
+
+
+  const formatGasPrice = () => {
+    if (!gasPrice) return "Loading...";
+    return `~${formatUnits(gasPrice, 18)} ETH`;
+  };
+
   useEffect(() => {
     if (walletClient && taskRewardContract && address) {
-      // 预热 walletClient
       walletClient.getAddresses().catch((error: Error) => {
-        console.debug("预热 walletClient 失败:", error);
+        console.debug(" walletClient fail:", error);
       });
     }
   }, [walletClient, taskRewardContract, address]);
 
   const handleClaimSubmit = async () => {
     if (!isConnected || !address) {
-      notification.error("请先连接钱包");
+      notification.error("Please connect the wallet");
       return;
     }
     const formattedAvailableAmount = formatAmount(availableAmount);
     if (Number(claimAmount) > Number(formattedAvailableAmount)) {
-      notification.error(`可领取金额不能超过 ${formattedAvailableAmount} USDT`);
+      notification.error(`The amount that can be claimed cannot exceed ${formattedAvailableAmount} USDT`);
       return;
     }
     setLoading(true);
 
     try {
       if (!taskRewardContract || !walletClient || !publicClient) {
-        throw new Error("合约或钱包未准备好");
+        throw new Error("The contract or wallet is not ready");
       }
 
       const parsedAmount = parseUnits(claimAmount, 6);
-      console.log("当前类型:", type);
-      console.log("可用金额:", availableAmount);
-      console.log("领取金额:", claimAmount);
-      console.log("提交申请参数:", {
+      console.log("type:", type);
+      console.log("availableAmount:", availableAmount);
+      console.log("claimAmount:", claimAmount);
+      console.log("Submit application parameters:", {
         type,
         bountyId,
         availableAmount,
         claimAmount,
       });
       if (type === "task") {
-        // 移除任务信息获取的逻辑，直接提交申请
         try {
           if (!taskRewardContract || !walletClient || !publicClient) {
-            throw new Error("合约或钱包未准备好");
+            throw new Error("The contract or wallet is not ready");
           }
 
           const parsedAmount = parseUnits(claimAmount, 6);
-          console.log("提交申请参数:", {
+          console.log("Submit application parameters:", {
             type,
-            bountyId: "task", // 使用固定值
+            bountyId: "task",
             claimAmount,
             parsedAmount,
           });
 
-          // 直接调用合约的 submitClaim 方法
           const { request } = await publicClient.simulateContract({
             account: address,
             address: taskRewardContract.address,
             abi: taskRewardContract.abi,
             functionName: "submitClaim",
-            args: [BigInt(0), parsedAmount], // 使用 0 作为 taskId
+            args: [BigInt(0), parsedAmount],
           });
 
           const claimTx = await walletClient.writeContract(request);
-          console.log("Claim 交易已发送:", claimTx);
+          console.log("Claim Transaction sented:", claimTx);
 
           const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
-          console.log("Claim 交易已确认:", receipt);
+          console.log("Claim Transaction confirmed:", receipt);
 
-          // 从事件中获取 claimId
           let claimId = "";
           for (const log of receipt.logs) {
             try {
@@ -126,11 +144,10 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
           }
 
           if (!claimId) {
-            throw new Error("未能获取到 ClaimId");
+            throw new Error("failed to obtain ClaimId");
           }
 
-          // 直接执行 Claim
-          console.log("开始执行 Claim...");
+          console.log("Claiming...");
           const executeTx = await walletClient.writeContract({
             account: address,
             address: taskRewardContract.address,
@@ -139,11 +156,10 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
             args: [BigInt(claimId)],
           });
 
-          console.log("Execute 交易已发送:", executeTx);
+          console.log("Execute Transaction sented:", executeTx);
           const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: executeTx });
-          console.log("Execute 交易已确认:", executeReceipt);
+          console.log("Execute Transaction confirmed:", executeReceipt);
 
-          // 保存记录到数据库
           const saveResponse = await fetch("/api/claims", {
             method: "POST",
             headers: {
@@ -171,25 +187,22 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
 
           if (!saveResponse.ok) {
             const errorData = await saveResponse.json();
-            throw new Error(errorData.message || "保存记录失败");
+            throw new Error(errorData.message || "Failed to save record");
           }
 
-          notification.success("奖励领取成功！");
+          notification.success("Reward successfully!");
           setClaimAmount("");
           onClose();
         } catch (error) {
-          console.error("领取失败:", error);
-          notification.error("领取失败: " + (error instanceof Error ? error.message : String(error)));
-          throw error; // 继续抛出错误，让外层的 catch 处理
+          console.error("Failed to collect:", error);
+          notification.error("Failed to collect: " + (error instanceof Error ? error.message : String(error)));
+          throw error;
         }
       } else {
-        // 邀请奖励处理逻辑
-        console.log("开始处理邀请奖励...");
         if (Number(availableAmount) < Number(claimAmount)) {
-          throw new Error(`可用余额不足，当前邀请奖励可用余额: ${availableAmount} USDT`);
+          throw new Error(`Insufficient balance, Currently available: ${availableAmount} USDT`);
         }
 
-        // 提交 Claim
         const { request } = await publicClient.simulateContract({
           account: address,
           address: taskRewardContract.address,
@@ -199,12 +212,11 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         });
 
         const claimTx = await walletClient.writeContract(request);
-        console.log("邀请奖励 Claim 交易已发送:", claimTx);
+        console.log("Invitation rewards Claim Transaction sented:", claimTx);
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash: claimTx });
-        console.log("邀请奖励 Claim 交易已确认:", receipt);
+        console.log("Invitation rewards Claim Transaction confirmed:", receipt);
 
-        // 获取 claimId
         let claimId = "";
         for (const log of receipt.logs) {
           try {
@@ -223,11 +235,10 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
         }
 
         if (!claimId) {
-          throw new Error("未能获取到邀请奖励的 ClaimId");
+          throw new Error("Failed to obtain invitation rewards ClaimId");
         }
 
-        // 执行 Claim
-        console.log("开始执行邀请奖励 Claim...");
+        console.log("Claiming...");
         const executeTx = await walletClient.writeContract({
           account: address,
           address: taskRewardContract.address,
@@ -236,11 +247,8 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
           args: [BigInt(claimId)],
         });
 
-        console.log("邀请奖励 Execute 交易已发送:", executeTx);
         const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: executeTx });
-        console.log("邀请奖励 Execute 交易已确认:", executeReceipt);
 
-        // 保存记录
         const saveResponse = await fetch("/api/claims", {
           method: "POST",
           headers: {
@@ -268,16 +276,16 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
 
         if (!saveResponse.ok) {
           const errorData = await saveResponse.json();
-          throw new Error(errorData.message || "保存邀请奖励记录失败");
+          throw new Error(errorData.message || "Failed to save invitation reward record");
         }
 
-        notification.success("邀请奖励领取成功！");
+        notification.success("The invitation reward was collected successfully!");
         setClaimAmount("");
         onClose();
       }
     } catch (error) {
-      console.error("领取失败:", error);
-      notification.error("领取失败: " + (error instanceof Error ? error.message : String(error)));
+      console.error("Failed to collect:", error);
+      notification.error("Failed to collect: " + (error instanceof Error ? error.message : String(error)));
     } finally {
       setLoading(false);
     }
@@ -291,11 +299,11 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
           ✕
         </button>
 
-        <h3 className="text-xl font-bold mb-6 text-white">领取奖励</h3>
+        <h3 className="text-xl font-bold mb-6 text-white">Claim rewards</h3>
 
         <div className="space-y-4">
           <div className="border border-[#424242] bg-black rounded-lg p-4">
-            <span className="text-sm text-gray-400">可领取金额:</span>
+            <span className="text-sm text-gray-400">Amount:</span>
             <span className="text-white ml-2 text-lg font-semibold">{formatAmount(availableAmount)} USDT</span>
           </div>
 
@@ -310,7 +318,7 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
               />
               <input
                 type="number"
-                placeholder="输入领取数量"
+                placeholder="Enter the quantity to receive"
                 value={claimAmount}
                 onChange={e => setClaimAmount(e.target.value)}
                 className="w-full bg-black text-white pl-10 pr-20 py-3 rounded-lg border border-[#424242] focus:outline-none focus:ring-2 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -325,7 +333,7 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
             </div>
 
             <div className="flex justify-between items-center text-sm text-gray-400 px-2">
-              <span>Gas Price: ~0.001 ETH</span>
+              <span>Gas Price: {formatGasPrice()}</span>
             </div>
 
             <button
@@ -348,12 +356,12 @@ export const ClaimModal: React.FC<ClaimModalProps> = ({
               {loading ? (
                 <div className="flex items-center justify-center">
                   <Loading size="sm" color="primary" className="mr-2" />
-                  处理中...
+                  Loading...
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
                   <ClipboardDocumentCheckIcon className="h-5 w-5 mr-2" />
-                  提交申请
+                  Claim
                 </div>
               )}
             </button>

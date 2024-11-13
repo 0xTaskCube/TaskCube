@@ -4,11 +4,8 @@ import { ObjectId } from "mongodb";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  console.log("收到 POST 请求:", body);
 
-  // 检查是创建新任务还是提交任务
   if (body.title) {
-    // 创建新任务
     const {
       title,
       description,
@@ -33,7 +30,7 @@ export async function POST(request: NextRequest) {
       !creatorAddress ||
       !taskCount
     ) {
-      return NextResponse.json({ message: "所有字段都是必需的" }, { status: 400 });
+      return NextResponse.json({ message: "All fields are required" }, { status: 400 });
     }
 
     try {
@@ -61,70 +58,71 @@ export async function POST(request: NextRequest) {
       const result = await db.collection("tasks").insertOne(newTask);
 
       if (result.insertedId) {
-        console.log("任务发布成功:", result.insertedId);
-        return NextResponse.json({ message: "任务发布成功", taskId: result.insertedId, status: "success" });
+        return NextResponse.json({
+          message: "Task published successfully",
+          taskId: result.insertedId,
+          status: "success",
+        });
       } else {
         throw new Error("Failed to insert task");
       }
     } catch (error) {
-      console.error("发布任务时出错:", error);
-      return NextResponse.json({ message: "发布任务失败", error: (error as Error).message }, { status: 500 });
+      console.error("An error occurred while publishing the task:", error);
+      return NextResponse.json({ message: "Publishing task failed", error: (error as Error).message }, { status: 500 });
     }
   } else {
-    // 提交任务
     const { taskId, address } = body;
 
     if (!taskId || !address) {
-      return NextResponse.json({ message: "taskId 和 address 是必需的" }, { status: 400 });
+      return NextResponse.json({ message: "taskId and address is required" }, { status: 400 });
     }
 
     try {
       const client = await clientPromise;
       const db = client.db("taskcube");
 
-      // 首先检查任务是否存在
       const task = await db.collection("tasks").findOne({ _id: new ObjectId(taskId as string) });
 
       if (!task) {
-        console.log("任务不存在:", taskId);
-        return NextResponse.json({ message: "任务不存在" }, { status: 400 });
+        console.log("Task does not exist:", taskId);
+        return NextResponse.json({ message: "Task does not exist" }, { status: 400 });
       }
 
-      // 检查用户是否参与了该任务
       const participantIndex = task.participants.findIndex((p: any) => p.address === address);
 
       if (participantIndex === -1) {
-        console.log("用户未参与该任务:", { taskId, address });
-        return NextResponse.json({ message: "用户未参与该任务" }, { status: 400 });
+        console.log("The user is not involved in the task:", { taskId, address });
+        return NextResponse.json({ message: "The user is not involved in the task" }, { status: 400 });
       }
 
-      // 检查任务是否已经提交
       if (task.participants[participantIndex].status === "submitted") {
-        console.log("任务已经提交过了:", { taskId, address });
-        return NextResponse.json({ message: "任务已经提交过了" }, { status: 400 });
+        console.log("The task has been submitted:", { taskId, address });
+        return NextResponse.json({ message: "The task has been submitted" }, { status: 400 });
       }
 
-      // 更新任务状态
       const result = await db.collection("tasks").updateOne(
         { _id: new ObjectId(taskId as string), "participants.address": address },
         {
           $set: {
             "participants.$.status": "submitted",
-            status: "pending_approval", // 添加这行
+            status: "pending_approval",
           },
         },
       );
 
       if (result.modifiedCount === 0) {
-        console.log("任务状态未更新:", { taskId, address });
-        return NextResponse.json({ message: "任务状态未更改，可能是因为已经是提交状态" }, { status: 400 });
+        console.log("Task status not updated:", { taskId, address });
+        return NextResponse.json(
+          { message: "The task status has not changed, probably because it is already submitted" },
+          { status: 400 },
+        );
       }
 
-      console.log("任务提交成功:", { taskId, address });
-      return NextResponse.json({ message: "任务已提交审核", status: "success" });
+      console.log("Task submitted successfully:", { taskId, address });
+      return NextResponse.json({ message: "The task has been submitted for review", status: "success" });
     } catch (error) {
-      console.error("提交任务时出错:", error);
-      return NextResponse.json({ message: "提交任务失败", error: (error as Error).message }, { status: 500 });
+      console.error("Error submitting task:", error);
+      return NextResponse.json({ message: "Failed to submit task", error: (error as Error).message }, { status: 500 });
     }
   }
 }
@@ -138,16 +136,12 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise;
     const db = client.db("taskcube");
 
-    // 如果是请求用户数据
     if (address && !taskId) {
-      // 获取用户数据
       const user = await db.collection("users").findOne({ address });
 
-      // 获取用户的任务数据
       const publishedTasks = await db.collection("tasks").find({ creatorAddress: address }).toArray();
       const acceptedTasks = await db.collection("tasks").find({ "participants.address": address }).toArray();
 
-      // 获取用户的奖励分配记录
       const distributions = await db
         .collection("rewardDistributions")
         .find({
@@ -159,7 +153,6 @@ export async function GET(request: NextRequest) {
         })
         .toArray();
 
-      // 计算总奖励
       let totalBounty = 0;
       distributions.forEach(dist => {
         if (dist.participantAddress === address) totalBounty += dist.userReward;
@@ -181,7 +174,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 原有的任务查询逻辑
     if (taskId) {
       const task = await db.collection("tasks").findOne({ _id: new ObjectId(taskId) });
       if (task) {
@@ -190,7 +182,7 @@ export async function GET(request: NextRequest) {
           task: {
             ...task,
             taskCount: task.taskCount || 0,
-            onChainTaskId: task.onChainTaskId, // 确保返回 onChainTaskId
+            onChainTaskId: task.onChainTaskId,
           },
         });
       } else {
@@ -198,15 +190,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 获取所有任务
     const tasks = await db.collection("tasks").find().sort({ createdAt: -1 }).toArray();
     return NextResponse.json(tasks);
   } catch (error) {
-    console.error("API 错误:", error);
+    console.error("API error:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "获取数据失败",
+        message: "Failed to get data",
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
@@ -218,10 +209,8 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json();
   const { taskId, address } = body;
 
-  console.log("接收到 PATCH 请求:", body);
-
   if (!taskId || !address) {
-    return NextResponse.json({ message: "taskId 和 address 是必需的" }, { status: 400 });
+    return NextResponse.json({ message: "taskId and address is required" }, { status: 400 });
   }
 
   try {
@@ -236,18 +225,18 @@ export async function PATCH(request: NextRequest) {
       );
 
     if (result.matchedCount === 0) {
-      return NextResponse.json({ message: "任务不存在" }, { status: 400 });
+      return NextResponse.json({ message: "Task does not exist" }, { status: 400 });
     }
 
     if (result.modifiedCount === 0) {
-      return NextResponse.json({ message: "用户已经接受了该任务" }, { status: 400 });
+      return NextResponse.json({ message: "The user has accepted the task" }, { status: 400 });
     }
 
-    console.log("任务接受成功:", { taskId, address });
-    return NextResponse.json({ message: "任务接受成功", status: "success" });
+    console.log("Task accepted successfully:", { taskId, address });
+    return NextResponse.json({ message: "Task accepted successfully", status: "success" });
   } catch (error) {
-    console.error("接受任务时出错:", error);
-    return NextResponse.json({ message: "接受任务失败", error: (error as Error).message }, { status: 500 });
+    console.error("Error accepting task:", error);
+    return NextResponse.json({ message: "Error accepting task", error: (error as Error).message }, { status: 500 });
   }
 }
 
@@ -255,10 +244,8 @@ export async function PUT(request: NextRequest) {
   const body = await request.json();
   const { taskId, participantAddress, action } = body;
 
-  console.log("接收到 PUT 请求:", body);
-
   if (!taskId || !participantAddress || !action) {
-    return NextResponse.json({ message: "taskId, participantAddress 和 action 是必需的" }, { status: 400 });
+    return NextResponse.json({ message: "taskId, participantAddress and action is required" }, { status: 400 });
   }
 
   try {
@@ -271,13 +258,12 @@ export async function PUT(request: NextRequest) {
     } else if (action === "reject") {
       updateStatus = "rejected";
     } else {
-      return NextResponse.json({ message: "无效的 action" }, { status: 400 });
+      return NextResponse.json({ message: "Invalid action" }, { status: 400 });
     }
 
-    // 获取任务信息
     const task = await db.collection("tasks").findOne({ _id: new ObjectId(taskId as string) });
     if (!task) {
-      return NextResponse.json({ message: "任务不存在" }, { status: 404 });
+      return NextResponse.json({ message: "Task does not exist" }, { status: 404 });
     }
 
     const updateData: { [key: string]: any } = {
@@ -297,32 +283,28 @@ export async function PUT(request: NextRequest) {
       );
 
     if (result.matchedCount === 0) {
-      return NextResponse.json({ message: "任务或参与者不存在" }, { status: 404 });
+      return NextResponse.json({ message: "Task or participant does not exist" }, { status: 404 });
     }
 
     if (action === "approve") {
       const reward = parseFloat(task.reward) || 0;
 
-      // 确保参与者不是任务创建者
       if (task.creatorAddress !== participantAddress) {
         const session = client.startSession();
         try {
           await session.withTransaction(async () => {
-            // 1. 计算基础奖励金额
-            const userReward = reward * 0.94; // 94% 给完成任务的用户
-            const platformFee = reward * 0; // 0% 平台手续费
-            let unclaimedReward = reward * 0.06; // 剩余6%默认为未认领奖励
+            // Reward distribution
+            const userReward = reward * 0.94;
+            const platformFee = reward * 0;
+            let unclaimedReward = reward * 0.06;
 
-            // 2. 查找邀请关系并分配邀请奖励
             const invite = await db.collection("invites").findOne({ invitee: participantAddress });
             if (invite) {
-              // 更新直接邀请者奖励 (5%)
               await db
                 .collection("users")
                 .updateOne({ address: invite.inviter }, { $inc: { bounty: reward * 0.05 } }, { upsert: true, session });
               unclaimedReward -= reward * 0.05;
 
-              // 查找并更新二级邀请者奖励 (1%)
               const secondLevelInvite = await db.collection("invites").findOne({ invitee: invite.inviter });
               if (secondLevelInvite) {
                 await db
@@ -336,12 +318,10 @@ export async function PUT(request: NextRequest) {
               }
             }
 
-            // 3. 更新参与者的奖励 (90%)
             await db
               .collection("users")
               .updateOne({ address: participantAddress }, { $inc: { bounty: userReward } }, { upsert: true, session });
 
-            // 4. 更新全局 Bounty
             const globalBountyId = new ObjectId("000000000000000000000000");
             await db.collection("bounties").updateOne(
               { _id: globalBountyId },
@@ -355,7 +335,6 @@ export async function PUT(request: NextRequest) {
               { upsert: true, session },
             );
 
-            // 5. 记录奖励分配
             await db.collection("rewardDistributions").insertOne(
               {
                 taskId: task._id,
@@ -375,7 +354,6 @@ export async function PUT(request: NextRequest) {
               { session },
             );
 
-            // 6. 保存合约调用请求
             if (task.onChainTaskId) {
               await db.collection("contractCalls").insertOne(
                 {
@@ -396,17 +374,17 @@ export async function PUT(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "任务已批准并完成",
+        message: "Task approved and completed",
         reward,
         needsContractCall: task.onChainTaskId ? true : false,
       });
     } else {
-      return NextResponse.json({ success: true, message: "任务已拒绝" });
+      return NextResponse.json({ success: true, message: "Task rejected" });
     }
   } catch (error) {
-    console.error(`${action === "approve" ? "批准" : "拒绝"}任务失败:`, error);
+    console.error(`${action === "approve" ? "approve" : "reject"}Task failed:`, error);
     return NextResponse.json(
-      { success: false, message: `${action === "approve" ? "批准" : "拒绝"}任务失败` },
+      { success: false, message: `${action === "approve" ? "approve" : "reject"}Task failed` },
       { status: 500 },
     );
   }

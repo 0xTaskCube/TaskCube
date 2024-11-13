@@ -40,7 +40,6 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
     event ClaimExecuted(uint256 indexed claimId, address indexed user, uint256 amount);
     event TokensWithdrawn(address indexed to, uint256 amount);
     
-    // 添加新的调试事件
     event TaskDebug(
         uint256 taskId, 
         uint256 totalReward,
@@ -123,7 +122,6 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         emit ClaimExecuted(claimId, claim.user, claim.amount);
     }
 
-    // 添加这个函数来查询已领取的奖励
     function getClaimedRewards(uint256 taskId) public view returns (uint256) {
         return claimedRewards[taskId];
     }
@@ -175,10 +173,10 @@ contract TaskReward is AccessControl, ReentrancyGuard, Pausable {
         require(msg.sender == task.creator, "Only creator can withdraw");
         require(task.isActive, "Task not active");
         
-        // 使用 completedTaskCount 而不是计算值
+        
         uint256 completed = completedTaskCount[taskId];
         
-        // 计算实际可提取金额：未完成任务的奖励
+        
         uint256 withdrawAmount = (task.totalParticipants - completed) * (task.totalReward / task.totalParticipants);
         require(withdrawAmount > 0, "No remaining reward");
         

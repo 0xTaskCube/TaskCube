@@ -36,9 +36,7 @@ export const queryClient = new QueryClient({
 });
 
 export const ScaffoldEthAppWithProviders = ({ children }: { children: React.ReactNode }) => {
-  useEffect(() => {
-    // 如果需要在组件挂载后执行某些操作，可以在这里添加
-  }, []);
+  useEffect(() => {}, []);
 
   return (
     <WagmiProvider config={wagmiConfig}>

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       {
         $set: {
           "participants.$.status": "accepted",
-          status: "published", // 重置任务整体状态
+          status: "published",
         },
       },
     );
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: "Task status reset successfully" });
   } catch (error) {
-    console.error("重置任务状态失败:", error);
-    return NextResponse.json({ success: false, message: "重置任务状态失败" }, { status: 500 });
+    console.error("Failed to reset task status:", error);
+    return NextResponse.json({ success: false, message: "Failed to reset task status" }, { status: 500 });
   }
 }

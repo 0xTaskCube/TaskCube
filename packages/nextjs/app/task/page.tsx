@@ -22,17 +22,17 @@ interface Quest {
 const getParticipationTypeColor = (type: string): string => {
   switch (type) {
     case "Initiate":
-      return "bg-[#0d9488]"; // 绿色
+      return "bg-[#0d9488]";
     case "Operative":
-      return "bg-[#3498db]"; // 蓝色
+      return "bg-[#3498db]";
     case "Enforcer":
-      return "bg-[#e74c3c]"; // 橙色
+      return "bg-[#e74c3c]";
     case "Vanguard":
-      return "bg-[#9b59b6]"; // 紫色
+      return "bg-[#9b59b6]";
     case "Prime":
-      return "bg-[#ffd700]"; // 金色
+      return "bg-[#ffd700]";
     default:
-      return "bg-gray-700"; // 保留默认颜色为深灰色
+      return "bg-gray-700";
   }
 };
 
@@ -117,15 +117,15 @@ const QuestItem = ({
             </div>
             <div>
               <h3 className="text-white text-sm sm:text-base mb-1 sm:mb-2 font-semibold truncate max-w-[150px] sm:max-w-none flex items-center">
-                {name || "未命名任务"}
+                {name || "Unnamed task"}
                 {creatorAddress && isOfficialTask(creatorAddress) && <OfficialBadge />}
               </h3>
               <p className="text-gray-400 text-[10px] sm:text-xs -mt-0.5 truncate mb-1 sm:mb-2">
-                {creatorAddress ? `${creatorAddress.slice(0, 6)}...${creatorAddress.slice(-4)}` : "未知创建者"}
+                {creatorAddress ? `${creatorAddress.slice(0, 6)}...${creatorAddress.slice(-4)}` : "Unknown creator"}
               </p>
               <div className="flex items-center space-x-1 sm:space-x-2 text-[10px] sm:text-xs">
                 <span className={`${getTaskTypeColor(taskType)} text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded`}>
-                  {taskType === "individual" ? "个人任务" : "团队任务"}
+                  {taskType === "individual" ? "Personal" : "Team"}
                 </span>
                 <span
                   className={`${getParticipationTypeColor(
@@ -156,7 +156,7 @@ const QuestItem = ({
               {reward} USDT
             </p>
             <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              {isTaskCompleted ? "已结束" : formattedTimeRemaining}
+              {isTaskCompleted ? "Ended" : formattedTimeRemaining}
             </p>
           </div>
         </div>
@@ -179,7 +179,7 @@ const AllQuestsPage = () => {
         const formattedQuests = data.map((task: any) => ({
           id: task._id,
           name: task.title,
-          creator: task.creator || "未知创建者",
+          creator: task.creator || "Unknown creator",
           creatorAddress: task.creatorAddress,
           reward: task.reward,
           timeRemaining: getTimeRemaining(task.endDate),
@@ -190,9 +190,9 @@ const AllQuestsPage = () => {
         }));
         setQuests(formattedQuests);
       } catch (error) {
-        console.error("获取任务失败:", error);
+        console.error("Failed to get task:", error);
       } finally {
-        setIsLoading(false); // 结束加载
+        setIsLoading(false);
       }
     };
     fetchTasks();
@@ -226,7 +226,7 @@ const AllQuestsPage = () => {
           </svg>
           All Tasks
         </h1>
-        <p className="text-gray-400 mb-4">All other High-Value quests that are available to you.</p>
+        <p className="text-gray-400 mb-4">Tasks with TaskCube logo represent official releases.</p>
         <div className="flex flex-row justify-between items-center mb-4 space-x-2">
           {/* <div className="relative flex-grow">
             <input
@@ -243,15 +243,15 @@ const AllQuestsPage = () => {
           </div> */}
           <Link
             href="/task/my-tasks"
-            className="btn btn-primary btn-sm py-2 px-4 rounded transition-colors text-center whitespace-nowrap"
+            className="btn btn-primary btn-sm py-2 px-2 rounded transition-colors text-center whitespace-nowrap"
           >
-            我的任务
+            My task
           </Link>
           <Link
             href="/task/create"
-            className="btn btn-primary btn-sm py-2 px-4 rounded  transition-colors text-center whitespace-nowrap"
+            className="btn btn-primary btn-sm py-2 px-2 rounded  transition-colors text-center whitespace-nowrap"
           >
-            发布任务
+            Create task
           </Link>
         </div>
 
@@ -267,7 +267,7 @@ const AllQuestsPage = () => {
           ) : (
             <div className="border border-[#424242] bg-base-400 p-4 rounded-lg">
               <div className="flex flex-col items-center justify-center py-12">
-                <p className="text-gray-400 mb-4">暂无任务</p>
+                <p className="text-gray-400 mb-4">No tasks yet</p>
               </div>
             </div>
           )}

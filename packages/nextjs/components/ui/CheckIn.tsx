@@ -6,7 +6,6 @@ import { useAccount } from "wagmi";
 type LevelType = "Initiate" | "Operative" | "Enforcer" | "Vanguard" | "Prime";
 interface CheckInProps {
   userLevel?: {
-    // 使用可选属性
     level: LevelType;
   };
 }
@@ -18,7 +17,6 @@ interface CheckInState {
 }
 
 const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) => {
-  // 添加默认值
   const [checkInState, setCheckInState] = useState<CheckInState>({
     consecutiveDays: 0,
     lastCheckIn: null,
@@ -40,7 +38,6 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
       const response = await fetch(`/api/CheckIn?address=${address}`);
       const data = await response.json();
 
-      // 如果是新用户（没有签到记录），显示 0 天
       if (!data.lastCheckIn) {
         setCheckInState({
           consecutiveDays: 0,
@@ -49,12 +46,11 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
           level: data.level || "Initiate",
         });
       } else {
-        // 如果有签到记录，使用后端返回的数据
         setCheckInState(data);
       }
     } catch (error) {
-      console.error("获取签到状态失败:", error);
-      // 发生错误时也显示 0 天
+      console.error("Failed to get check-in status:", error);
+
       setCheckInState({
         consecutiveDays: 0,
         lastCheckIn: null,
@@ -88,7 +84,7 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
         await fetchCheckInState();
       }
     } catch (error) {
-      console.error("签到失败:", error);
+      console.error("Check in failed:", error);
     }
   };
 
@@ -101,15 +97,15 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
         },
         body: JSON.stringify({
           address,
-          level: userLevel.level, // 传入当前等级
+          level: userLevel.level,
         }),
       });
       const data = await response.json();
       if (data.success) {
-        await fetchCheckInState(); // 重新获取最新状态
+        await fetchCheckInState();
       }
     } catch (error) {
-      console.error("补签失败:", error);
+      console.error("Failed to re-sign:", error);
     }
   };
   const progressPercentage = (checkInState.consecutiveDays / 100) * 100;
@@ -121,13 +117,13 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
     const lastCheckIn = new Date(checkInState.lastCheckIn);
     const now = new Date();
 
-    // 转换为 UTC+8 时间
+    // UTC+8
     const utc8Last = new Date(lastCheckIn.getTime() + 8 * 60 * 60 * 1000);
     const utc8Now = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
     const diffDays = Math.floor((utc8Now.getTime() - utc8Last.getTime()) / (1000 * 60 * 60 * 24));
 
-    // 获取允许的补签天数
+    // Make up days
     let allowedDays = 0;
     switch (userLevel.level) {
       case "Prime":
@@ -146,25 +142,30 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
         allowedDays = 0;
     }
 
-    // 间隔大于1天且在补签期限内
     return diffDays > 1 && diffDays <= allowedDays;
   }, [checkInState.lastCheckIn, userLevel.level]);
 
   const checkInRules = `
-签到规则：
-1. 每天只能签到一次
-2. 不同等级可获得不同补签机会：
-   - Operative: 1天
-   - Enforcer: 3天
-   - Vanguard: 5天
-   - Prime: 7天
-   
-签到奖励：
-2. 连续签到100天可获得高额奖励,按完成时间排名:
-   - 1-10名: 1BTC
-   - 11-200名: 2ETH
-   - 201-2000名: 1ETH
-   - 2001-10000名: 1000USDT
+Check-in Rules:
+
+1. Limited to one check-in per day
+
+2. Makeup Check-in Opportunities by Level:
+   • Operative:  1 Day
+   • Enforcer:   3 Days
+   • Vanguard:   5 Days
+   • Prime:      7 Days
+
+
+Check-in Rewards:
+
+100-Day Streak Special Rewards
+(Ranked by completion time)
+
+🏆 Top 10:          1 BTC
+🥈 Rank 11-200:     2 ETH
+🥉 Rank 201-2000:   1 ETH
+✨ Rank 2001-10000: 1000 USDT
 
 `.trim();
   const handleMouseEnter = useCallback(() => setShowTooltip(true), []);
