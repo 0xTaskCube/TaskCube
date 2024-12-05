@@ -113,31 +113,36 @@ const DepositWithdrawalPage = () => {
         const totalDeposit = await depositWithdrawContract.read.getTotalDeposit([address as `0x${string}`]);
         const formattedTotalDeposit = formatUnits(totalDeposit, 6);
 
+        console.log("Raw totalDeposit:", totalDeposit);
+        console.log("Formatted totalDeposit:", formattedTotalDeposit);
+
         const response = await fetch(`/api/DepositWithdrawal?userAddress=${address}&action=getBalance`);
         const data = await response.json();
 
         if (data.success) {
           const pendingWithdrawals = data.pendingWithdrawalsTotal;
           const executedWithdrawals = data.executedWithdrawalsTotal;
+          const totalDepositsFromDB = data.totalDeposits;
 
-          const platformBalanceValue = Math.max(0, parseFloat(formattedTotalDeposit) - parseFloat(executedWithdrawals));
+          console.log("DB Total Deposits:", totalDepositsFromDB);
+          console.log("Pending Withdrawals:", pendingWithdrawals);
+          console.log("Executed Withdrawals:", executedWithdrawals);
+
+          const platformBalanceValue = Math.max(0, parseFloat(totalDepositsFromDB) - parseFloat(executedWithdrawals));
           setPlatformBalance(platformBalanceValue.toFixed(2));
 
           const availableBalanceValue = Math.max(0, platformBalanceValue - parseFloat(pendingWithdrawals));
           setAvailableBalance(availableBalanceValue.toFixed(2));
-
-          console.log("total user deposits:", formattedTotalDeposit);
-          console.log("executedWithdrawals:", executedWithdrawals);
-          console.log("pendingWithdrawals:", pendingWithdrawals);
-          console.log("platformBalanceValue:", platformBalanceValue.toFixed(2));
-          console.log("availableBalanceValue:", availableBalanceValue.toFixed(6));
         } else {
           console.error("Failed to obtain balance information:", data.error);
-          setPlatformBalance(formattedTotalDeposit);
-          setAvailableBalance(formattedTotalDeposit);
+
+          setPlatformBalance("0");
+          setAvailableBalance("0");
         }
       } catch (error) {
         console.error("Failed to obtain balance information:", error);
+        setPlatformBalance("0");
+        setAvailableBalance("0");
       }
     }
   }, [address, depositWithdrawContract]);
