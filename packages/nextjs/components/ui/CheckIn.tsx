@@ -59,8 +59,27 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
       });
     }
   };
+  const handleShareTweet = useCallback(() => {
+    const nextDayCount = checkInState.consecutiveDays + 1;
+    const remainingDays = 100 - nextDayCount;
+    const tweetText = encodeURIComponent(
+      "✨ Day " +
+        nextDayCount +
+        " of my #TaskCube journey!🌟\n\n" +
+        "🎁 Only " +
+        remainingDays +
+        " days left until I earn #BTC rewards!🌟\n\n" +
+        "🚀Join me in building the future of Web3🌟:\n" +
+        "https://task-cubeweb.vercel.app/\n\n" +
+        "#Web3 #Crypto #BTC",
+    );
+
+    const twitterShareUrl = `https://x.com/intent/tweet?text=${tweetText}`;
+    window.open(twitterShareUrl, "_blank");
+  }, [checkInState.consecutiveDays]);
 
   const handleCheckIn = async () => {
+    handleShareTweet();
     try {
       const response = await fetch("/api/CheckIn", {
         method: "POST",
@@ -89,6 +108,7 @@ const CheckIn: React.FC<CheckInProps> = ({ userLevel = { level: "Initiate" } }) 
   };
 
   const handleMakeUpCheckIn = async () => {
+    handleShareTweet();
     try {
       const response = await fetch("/api/CheckIn/makeup", {
         method: "POST",
